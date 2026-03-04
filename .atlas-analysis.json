@@ -1,0 +1,109 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "ValveResourceFormat",
+  "projectDescription": "Parser, decompiler, and exporter for Valve's Source 2 resource file formats supporting models, textures, materials, maps, particles, and more.",
+  "theme": "aspen",
+  "primaryColor": "#324c7c",
+  "lightColor": "#e8f0f8",
+  "darkColor": "#949cab",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/resource-types",
+              "concepts/file-formats",
+              "concepts/blocks"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/reading-resources",
+              "guides/extracting-textures",
+              "guides/working-with-models",
+              "guides/parsing-materials",
+              "guides/decompiling-shaders",
+              "guides/vpk-archives"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/resource",
+              "api/block",
+              "api/file-extract"
+            ]
+          },
+          {
+            "group": "Resource Types",
+            "pages": [
+              "api/texture",
+              "api/material",
+              "api/model",
+              "api/mesh",
+              "api/sound",
+              "api/particle-system",
+              "api/world",
+              "api/binary-kv3"
+            ]
+          },
+          {
+            "group": "Renderer",
+            "pages": [
+              "api/renderer/scene-renderer",
+              "api/renderer/material-loader"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/string-token",
+              "api/utilities/murmur-hash"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Parse 50+ Source 2 resource types including models, textures, materials, maps, and particles",
+    "Extract and export assets to standard formats (PNG, glTF, WAV)",
+    "Decompile binary formats to human-readable text",
+    "OpenGL-based rendering engine for viewing Source 2 assets",
+    "VPK archive browsing and extraction",
+    "Support for all Source 2 games (Dota 2, Half-Life: Alyx, CS2, Artifact, Underlords)"
+  ],
+  "publicApiSurface": [
+    "ValveResourceFormat.Resource",
+    "ValveResourceFormat.ResourceTypes.Texture",
+    "ValveResourceFormat.ResourceTypes.Material",
+    "ValveResourceFormat.ResourceTypes.Model",
+    "ValveResourceFormat.ResourceTypes.Mesh",
+    "ValveResourceFormat.ResourceTypes.Sound",
+    "ValveResourceFormat.ResourceTypes.ParticleSystem",
+    "ValveResourceFormat.ResourceTypes.World",
+    "ValveResourceFormat.ResourceTypes.BinaryKV3",
+    "ValveResourceFormat.IO.FileExtract",
+    "ValveResourceFormat.Blocks.Block",
+    "ValveResourceFormat.Blocks.ResourceEditInfo",
+    "ValveResourceFormat.Utils.StringToken",
+    "ValveResourceFormat.Utils.MurmurHash2"
+  ]
+}
