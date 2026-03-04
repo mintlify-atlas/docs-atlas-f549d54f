@@ -1,0 +1,343 @@
+---
+title: Parsing material files
+description: Read Source 2 material files, access shader parameters, textures, and export to editable vmat format
+---
+
+This guide covers working with Source 2 material files (`.vmat_c`) including reading shader parameters and texture references.
+
+## Loading a material
+
+<Steps>
+
+### Load the material resource
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+var material = (Material)resource.DataBlock!;
+```
+
+### Access basic properties
+
+```csharp
+Console.WriteLine($"Material: {material.Name}");
+Console.WriteLine($"Shader: {material.ShaderName}");
+```
+
+### Get shader parameters
+
+```csharp
+// Integer parameters
+foreach (var (name, value) in material.IntParams)
+{
+    Console.WriteLine($"Int: {name} = {value}");
+}
+
+// Float parameters
+foreach (var (name, value) in material.FloatParams)
+{
+    Console.WriteLine($"Float: {name} = {value}");
+}
+
+// Vector parameters
+foreach (var (name, value) in material.VectorParams)
+{
+    Console.WriteLine($"Vector: {name} = ({value.X}, {value.Y}, {value.Z}, {value.W})");
+}
+```
+
+</Steps>
+
+## Accessing texture parameters
+
+### Get all textures
+
+```csharp
+foreach (var (paramName, texturePath) in material.TextureParams)
+{
+    Console.WriteLine($"Texture: {paramName} = {texturePath}");
+}
+```
+
+### Common texture parameters
+
+```csharp
+// Check for specific textures
+if (material.TextureParams.TryGetValue("g_tColor", out var colorTexture))
+{
+    Console.WriteLine($"Color texture: {colorTexture}");
+}
+
+if (material.TextureParams.TryGetValue("g_tNormal", out var normalTexture))
+{
+    Console.WriteLine($"Normal texture: {normalTexture}");
+}
+
+if (material.TextureParams.TryGetValue("g_tAmbientOcclusion", out var aoTexture))
+{
+    Console.WriteLine($"AO texture: {aoTexture}");
+}
+```
+
+## Working with material attributes
+
+Materials have additional attributes beyond shader parameters:
+
+```csharp
+// Integer attributes
+foreach (var (name, value) in material.IntAttributes)
+{
+    Console.WriteLine($"Int attribute: {name} = {value}");
+}
+
+// Float attributes  
+foreach (var (name, value) in material.FloatAttributes)
+{
+    Console.WriteLine($"Float attribute: {name} = {value}");
+}
+
+// Vector attributes
+foreach (var (name, value) in material.VectorAttributes)
+{
+    Console.WriteLine($"Vector attribute: {name} = {value}");
+}
+
+// String attributes
+foreach (var (name, value) in material.StringAttributes)
+{
+    Console.WriteLine($"String attribute: {name} = {value}");
+}
+```
+
+## Loading material textures
+
+To load textures referenced by a material:
+
+```csharp
+using ValveResourceFormat.IO;
+using SteamDatabase.ValvePak;
+
+// Set up file loader
+using var package = new Package();
+package.Read("game/pak01_dir.vpk");
+
+var fileLoader = new GameFileLoader(package, null);
+
+// Load each texture
+foreach (var (paramName, texturePath) in material.TextureParams)
+{
+    var textureFile = texturePath + "_c";
+    var textureResource = fileLoader.LoadFile(textureFile);
+    
+    if (textureResource != null)
+    {
+        var texture = (Texture)textureResource.DataBlock!;
+        Console.WriteLine($"{paramName}: {texture.Width}x{texture.Height}");
+    }
+}
+```
+
+## Exporting materials
+
+### Export to vmat format
+
+The `MaterialExtract` class exports materials to editable vmat format:
+
+```csharp
+using ValveResourceFormat.IO;
+
+var materialExtract = new MaterialExtract(resource, fileLoader);
+
+using var contentFile = materialExtract.ToContentFile();
+
+// Write the vmat file
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes("output.vmat", contentFile.Data);
+}
+
+// Extract referenced textures
+foreach (var additionalFile in contentFile.AdditionalFiles)
+{
+    Console.WriteLine($"Texture file: {additionalFile.FileName}");
+    
+    // Write texture sub-files (PNG images)
+    foreach (var subFile in additionalFile.SubFiles)
+    {
+        var data = subFile.Extract!();
+        File.WriteAllBytes(subFile.FileName, data);
+    }
+}
+```
+
+### Convert to Valve material format
+
+```csharp
+var materialExtract = new MaterialExtract(resource, fileLoader);
+var vmatString = materialExtract.ToValveMaterial();
+
+File.WriteAllText("output.vmat", vmatString);
+```
+
+## Accessing dynamic expressions
+
+Some materials use dynamic expressions:
+
+```csharp
+foreach (var (name, expression) in material.DynamicExpressions)
+{
+    Console.WriteLine($"Dynamic: {name} = {expression}");
+}
+```
+
+## Working with render modes
+
+Check material render states:
+
+```csharp
+// Check for specific int attributes that control rendering
+if (material.IntAttributes.TryGetValue("F_ALPHA_TEST", out var alphaTest))
+{
+    Console.WriteLine($"Alpha test: {alphaTest != 0}");
+}
+
+if (material.IntAttributes.TryGetValue("F_TRANSLUCENT", out var translucent))
+{
+    Console.WriteLine($"Translucent: {translucent != 0}");
+}
+```
+
+## Getting vertex input signature
+
+Materials define expected vertex attributes:
+
+```csharp
+var inputSignature = material.InputSignature;
+
+foreach (var element in inputSignature.Elements)
+{
+    Console.WriteLine($"Vertex element: {element.SemanticName}");
+    Console.WriteLine($"  Index: {element.SemanticIndex}");
+    Console.WriteLine($"  Format: {element.D3DFormat}");
+}
+```
+
+## Common material workflows
+
+### Export material with all textures
+
+```csharp
+var materialExtract = new MaterialExtract(resource, fileLoader);
+using var contentFile = materialExtract.ToContentFile();
+
+// Save material
+File.WriteAllBytes("material.vmat", contentFile.Data!);
+
+// Save all textures
+foreach (var textureFile in contentFile.AdditionalFiles)
+{
+    foreach (var subFile in textureFile.SubFiles)
+    {
+        var fullPath = Path.Combine("textures", subFile.FileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllBytes(fullPath, subFile.Extract!());
+    }
+}
+```
+
+### Get material as key-values
+
+```csharp
+using ValveResourceFormat.Serialization.KeyValues;
+
+// The underlying data is stored as KeyValues
+var materialData = material.Data;
+
+Console.WriteLine(materialData.ToString());
+```
+
+### Check shader features
+
+```csharp
+// Different shaders have different parameters
+switch (material.ShaderName)
+{
+    case "vr_complex.vfx":
+    case "hero.vfx":
+        // These support PBR parameters
+        if (material.FloatParams.TryGetValue("g_flMetalness", out var metalness))
+        {
+            Console.WriteLine($"Metalness: {metalness}");
+        }
+        break;
+    
+    case "csgo_environment_blend.vfx":
+        // CSGO specific shader
+        break;
+}
+```
+
+## Material property patterns
+
+### Get tint color
+
+```csharp
+if (material.VectorParams.TryGetValue("g_vColorTint", out var tint))
+{
+    var color = new Color(
+        (byte)(tint.X * 255),
+        (byte)(tint.Y * 255),
+        (byte)(tint.Z * 255),
+        (byte)(tint.W * 255)
+    );
+}
+```
+
+### Check blend mode
+
+```csharp
+if (material.StringAttributes.TryGetValue("BlendMode", out var blendMode))
+{
+    Console.WriteLine($"Blend mode: {blendMode}");
+}
+```
+
+### Get texture coordinate info
+
+```csharp
+if (material.VectorParams.TryGetValue("g_vTexCoordScale", out var scale))
+{
+    Console.WriteLine($"Texture scale: {scale.X}, {scale.Y}");
+}
+
+if (material.VectorParams.TryGetValue("g_vTexCoordOffset", out var offset))
+{
+    Console.WriteLine($"Texture offset: {offset.X}, {offset.Y}");
+}
+```
+
+## External references
+
+Materials can reference other materials:
+
+```csharp
+var externalRefs = resource.ExternalReferences;
+
+if (externalRefs != null)
+{
+    foreach (var reference in externalRefs.ResourceRefInfoList)
+    {
+        Console.WriteLine($"External reference: {reference.Name}");
+    }
+}
+```
+
+## Next steps
+
+- [Extract textures to PNG/TGA](/guides/extracting-textures)
+- [Work with models and meshes](/guides/working-with-models)
+- [Decompile shaders](/guides/decompiling-shaders)

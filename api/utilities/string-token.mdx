@@ -1,0 +1,173 @@
+---
+title: StringToken
+description: Provides utilities for string token hashing and inverse lookup in Source 2 resources
+---
+
+## Overview
+
+The `StringToken` class provides utilities for hashing strings using MurmurHash2 with a specific seed value and performing inverse lookups from hash values back to known strings. This is used throughout Source 2 resource parsing where strings are stored as hashed tokens for performance and consistency.
+
+## Constants
+
+### MURMUR2SEED
+
+```csharp
+public const uint MURMUR2SEED = 0x31415926
+```
+
+The MurmurHash2 seed value used for all string token hashing in Source 2 formats. The value `0x31415926` is a hexadecimal representation of pi.
+
+### VRF_GENERATOR
+
+```csharp
+public static readonly string VRF_GENERATOR
+```
+
+Generator identification string with version information, used for attribution in exported files.
+
+## Properties
+
+### InvertedTable
+
+```csharp
+public static readonly ConcurrentDictionary<uint, string> InvertedTable
+```
+
+A thread-safe dictionary mapping hash values back to their known string representations. Initialized with known entity keys and can be expanded at runtime using the `Store` methods.
+
+## Methods
+
+### Get
+
+```csharp
+public static uint Get(string key)
+```
+
+Computes the hash token for the given string using MurmurHash2 with the standard Source 2 seed.
+
+<ParamField path="key" type="string">
+  The string to hash
+</ParamField>
+
+<ResponseField name="returns" type="uint">
+  The 32-bit hash token
+</ResponseField>
+
+**Example:**
+```csharp
+var hash = StringToken.Get("targetname");
+// Returns the hash value used to identify this property in binary data
+```
+
+### GetKnownString
+
+```csharp
+public static string GetKnownString(uint hash)
+```
+
+Gets a known string for the given hash value, or returns an unknown key placeholder if the hash is not in the inverted table.
+
+<ParamField path="hash" type="uint">
+  The hash value to look up
+</ParamField>
+
+<ResponseField name="returns" type="string">
+  The known string or a placeholder in the format `vrf_unknown_key_{hash}`
+</ResponseField>
+
+**Example:**
+```csharp
+// When parsing entity properties stored as hashes
+var propertyName = StringToken.GetKnownString(keyHash);
+// Returns "targetname" if the hash is known, or "vrf_unknown_key_12345678" if not
+```
+
+### Store (single string)
+
+```csharp
+public static uint Store(string key)
+```
+
+Stores a string in the inverted table of known string hashes, allowing it to be retrieved later using `GetKnownString`. The string is normalized to lowercase before hashing.
+
+<ParamField path="key" type="string">
+  The string to store in the inverted table
+</ParamField>
+
+<ResponseField name="returns" type="uint">
+  The computed hash token
+</ResponseField>
+
+**Example:**
+```csharp
+// Store entity property keys as they are encountered
+var lowercaseKey = propertyKey.ToLowerInvariant();
+var hash = StringToken.Store(lowercaseKey);
+entity.Properties.AddProperty(lowercaseKey, value);
+```
+
+### Store (multiple strings)
+
+```csharp
+public static void Store(IEnumerable<string> keys)
+```
+
+Stores multiple strings in the inverted table, allowing them to be retrieved later using `GetKnownString`.
+
+<ParamField path="keys" type="IEnumerable<string>">
+  The collection of strings to store in the inverted table
+</ParamField>
+
+**Example:**
+```csharp
+// Store all shader attribute names for later lookup
+StringToken.Store(renderAttributesUsed);
+```
+
+## Usage in Source 2 parsing
+
+StringToken is used throughout the ValveResourceFormat library for handling hashed string identifiers:
+
+### Entity properties
+
+Entity lumps store property names as MurmurHash2 hashes. When parsing, unknown hashes can be resolved if they were previously stored:
+
+```csharp
+// Parsing entity with hashed property keys
+var keyName = StringToken.GetKnownString(keyHash);
+
+// Storing new property keys
+var hash = StringToken.Store(lowercaseKey);
+entity.Properties.AddProperty(lowercaseKey, value);
+```
+
+### Shader attributes
+
+VFX shader attributes use StringToken to compute and verify MurmurHash2 values:
+
+```csharp
+// Computing hash for shader attribute name
+Murmur32 = StringToken.Store(Name0);
+
+// Verifying hash matches expected value
+var murmurCheck = MurmurHash2.Hash(Name0.ToLowerInvariant(), StringToken.MURMUR2SEED);
+if (Murmur32 != murmurCheck)
+{
+    throw new ShaderParserException("Murmur check failed on header name");
+}
+```
+
+### Physics surfaces
+
+Physics aggregate data stores surface property names as hashes:
+
+```csharp
+// Resolve physics surface names from hashes
+var physicsSurfaceNames = phys.SurfacePropertyHashes
+    .Select(StringToken.GetKnownString)
+    .ToArray();
+```
+
+## Thread safety
+
+The `InvertedTable` uses `ConcurrentDictionary` for thread-safe access, allowing strings to be stored and retrieved from multiple threads concurrently.

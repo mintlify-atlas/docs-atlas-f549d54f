@@ -1,0 +1,282 @@
+---
+title: Blocks
+description: Understanding the block system in Source 2 resources and how blocks store different parts of resource data
+---
+
+Source 2 resources use a block-based structure to organize different types of data within a single file. Each resource contains one or more blocks, with each block serving a specific purpose.
+
+## Block structure
+
+Every block in a Source 2 resource has three components:
+
+1. **Type** - A four-character code identifying the block's purpose (e.g., `DATA`, `RERL`)
+2. **Offset** - Position in the file where the block's data begins
+3. **Size** - Length of the block's data in bytes
+
+Blocks are defined by the abstract `Block` class:
+
+```csharp
+public abstract class Block
+{
+    public abstract BlockType Type { get; }
+    public uint Offset { get; set; }
+    public uint Size { get; set; }
+    public required Resource Resource { get; set; }
+    
+    public abstract void Read(BinaryReader reader);
+    public abstract void WriteText(IndentedTextWriter writer);
+    public abstract void Serialize(Stream stream);
+}
+```
+
+## Common block types
+
+Source 2 resources use several standard block types across different resource formats.
+
+### DATA block
+
+The **DATA** block contains the primary content of a resource. The structure varies based on resource type:
+
+- For models (`vmdl`): Contains model definition and skeleton data
+- For textures (`vtex`): Contains texture metadata and format information  
+- For materials (`vmat`): Contains shader and parameter data
+- For maps (`vmap`): Contains map definition data
+
+The DATA block is accessed via `Resource.DataBlock`:
+
+```csharp
+var dataBlock = resource.DataBlock;
+```
+
+### RERL block (Resource External Reference List)
+
+The **RERL** block contains a list of external resources referenced by this resource. This enables dependency tracking and resource preloading.
+
+Examples:
+- A material references texture files
+- A model references material files
+- A particle system references texture and model files
+
+Access via `Resource.ExternalReferences`:
+
+```csharp
+var externalRefs = resource.ExternalReferences;
+if (externalRefs != null)
+{
+    foreach (var reference in externalRefs.ResourceRefInfoList)
+    {
+        Console.WriteLine(reference.Name);
+    }
+}
+```
+
+### REDI block (Resource Edit Info)
+
+The **REDI** block contains dependency and compilation metadata:
+
+- **Input dependencies** - Source files used to compile this resource
+- **Additional input dependencies** - Optional source files
+- **Argument dependencies** - Command-line arguments and settings
+- **Special dependencies** - Compiler identifiers and versions
+- **Child resources** - Related resource files
+- **Searchable user data** - Custom metadata
+
+Redi is a legacy format. Access via `Resource.EditInfo`:
+
+```csharp
+var editInfo = resource.EditInfo;
+if (editInfo != null)
+{
+    foreach (var dep in editInfo.InputDependencies)
+    {
+        Console.WriteLine($"Input: {dep.ContentRelativeFilename}");
+    }
+    
+    foreach (var special in editInfo.SpecialDependencies)
+    {
+        Console.WriteLine($"Compiler: {special.CompilerIdentifier}");
+    }
+}
+```
+
+### RED2 block (Resource Edit Info 2)
+
+The **RED2** block is an updated version of REDI stored in KV3 (KeyValues3) format. It contains the same types of information but uses a more modern serialization format.
+
+RED2 is accessed through the same `Resource.EditInfo` property as REDI.
+
+### NTRO block (Resource Introspection Manifest)
+
+The **NTRO** block contains structure and enum definitions for the resource data. This provides runtime type information for parsing resource data dynamically.
+
+<Note>
+NTRO has been deprecated by Valve in favor of binary KV3 format. Most modern resources use KV3 instead.
+</Note>
+
+### VBIB block (Vertex and Index Buffer)
+
+The **VBIB** block contains mesh vertex and index buffer data for models and world geometry. This includes:
+
+- Vertex positions, normals, tangents
+- Texture coordinates (UVs)
+- Vertex colors and weights
+- Index buffers for triangle data
+
+VBIB is used by models (`vmdl`), meshes (`vmesh`), and world nodes (`vwnod`).
+
+## Specialized block types
+
+In addition to the common blocks, Source 2 uses many specialized block types for specific purposes.
+
+### Animation blocks
+
+| Block type | Description |
+|------------|-------------|
+| **ANIM** | Skeletal animation data |
+| **ASEQ** | Animation sequence group data |
+| **AGRP** | Animation group resource data |
+
+### Mesh blocks
+
+| Block type | Description |
+|------------|-------------|
+| **MDAT** | Mesh geometry including hitboxes and material groups |
+| **MRPH** | Morph target (flex/blend shape) data |
+| **MBUF** | Alternative mesh buffer format |
+| **MVTX** | Mesh vertex buffer data |
+| **MIDX** | Mesh index buffer data |
+| **MADJ** | Mesh adjacency buffer |
+| **TBUF** | Tools-only vertex buffer for unused attributes |
+
+### Panorama UI blocks
+
+| Block type | Description |
+|------------|-------------|
+| **INSG** | Shader input layout and signature for materials |
+| **SrMa** | Source mapping data for Panorama CSS |
+| **LaCo** | Parsed VXML AST for Panorama layouts |
+| **STAT** | JavaScript metadata (public methods) |
+
+### Other blocks
+
+| Block type | Description |
+|------------|-------------|
+| **CTRL** | Control/configuration data in KV3 format |
+| **SNAP** | Particle system snapshot data |
+| **VXVS** | Voxel-based visibility data |
+| **PHYS** | Physics collision meshes and constraints |
+| **SPRV** | Compiled SPIR-V shader bytecode (S&box) |
+| **FLCI** | Source location data (file/line/column) |
+| **DSTF** | Distance field data in KV3 format |
+
+## Block type enum
+
+Block types are defined as a four-character code stored as a `uint32`:
+
+```csharp
+public enum BlockType : uint
+{
+    DATA = 'D' | ('A' << 8) | ('T' << 16) | ('A' << 24),
+    RERL = 'R' | ('E' << 8) | ('R' << 16) | ('L' << 24),
+    REDI = 'R' | ('E' << 8) | ('D' << 16) | ('I' << 24),
+    // ...
+}
+```
+
+This encoding allows the block type to be readable in a hex editor as ASCII characters.
+
+## Accessing blocks
+
+The `Resource` class provides several methods to access blocks:
+
+### Get block by type
+
+```csharp
+var dataBlock = resource.GetBlockByType(BlockType.DATA);
+var rerlBlock = resource.GetBlockByType(BlockType.RERL);
+```
+
+Returns `null` if the block type doesn't exist in the resource.
+
+### Get block by index
+
+```csharp
+var firstBlock = resource.GetBlockByIndex(0);
+var secondBlock = resource.GetBlockByIndex(1);
+```
+
+Throws `ArgumentOutOfRangeException` if the index is invalid.
+
+### Check for block type
+
+```csharp
+if (resource.ContainsBlockType(BlockType.VBIB))
+{
+    // This resource has mesh data
+}
+```
+
+### Iterate all blocks
+
+```csharp
+foreach (var block in resource.Blocks)
+{
+    Console.WriteLine($"{block.Type}: {block.Size} bytes at offset {block.Offset}");
+}
+```
+
+## Block construction
+
+When parsing a resource, ValveResourceFormat automatically constructs the appropriate block type based on:
+
+1. **Block type identifier** - The four-character code in the block header
+2. **Resource type** - Some blocks are only valid for certain resource types
+3. **Data magic** - The first few bytes of block data may indicate a specific format
+
+```csharp
+// From Resource.cs:500-533
+private Block ConstructFromType(BlockType blockType)
+{
+    return blockType switch
+    {
+        BlockType.DATA => ConstructResourceType(),
+        BlockType.REDI => new ResourceEditInfo() { Resource = this },
+        BlockType.RED2 => new ResourceEditInfo2() { Resource = this },
+        BlockType.RERL => new ResourceExtRefList() { Resource = this },
+        BlockType.VBIB => new VBIB() { Resource = this },
+        BlockType.CTRL => new BinaryKV3(BlockType.CTRL) { Resource = this },
+        // ...
+    };
+}
+```
+
+## Block reading order
+
+Blocks are read in a specific order to ensure dependencies are resolved:
+
+1. **NTRO** blocks are read first (deprecated introspection data)
+2. **REDI/RED2** blocks are read second to determine resource type
+3. **All other blocks** are read in their order in the file
+
+This allows the resource type to be determined before parsing type-specific blocks.
+
+## Block serialization
+
+Blocks can be serialized back to binary format:
+
+```csharp
+foreach (var block in resource.Blocks)
+{
+    block.Serialize(stream);
+}
+```
+
+<Warning>
+Not all block types support serialization. Attempting to serialize unsupported blocks will throw a `NotImplementedException`.
+</Warning>
+
+## Related resources
+
+- [File formats](/concepts/file-formats) - Resource file structure
+- [Resource types](/concepts/resource-types) - Supported resource types
+- [Block class reference](/api/block)

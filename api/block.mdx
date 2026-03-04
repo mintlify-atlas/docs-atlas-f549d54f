@@ -1,0 +1,285 @@
+---
+title: Block class
+description: Base class for resource file blocks that contain specific data segments
+---
+
+The `Block` class is an abstract base class representing a block within a resource file. Each block contains a specific type of data, such as the main DATA block, external reference lists (RERL), edit information (REDI), vertex buffers (VBIB), and more.
+
+## Properties
+
+<ResponseField name="Type" type="BlockType">
+  Gets the block type. This is an abstract property that must be implemented by derived classes.
+</ResponseField>
+
+<ResponseField name="Offset" type="uint">
+  Gets or sets the offset to the data within the resource file.
+</ResponseField>
+
+<ResponseField name="Size" type="uint">
+  Gets or sets the data size in bytes.
+</ResponseField>
+
+<ResponseField name="Resource" type="Resource" required>
+  Gets the resource this block belongs to. Can technically be null if constructed outside of a Resource.
+</ResponseField>
+
+## Methods
+
+### Read(BinaryReader)
+
+Reads the block data from a binary reader. This is an abstract method that must be implemented by derived classes.
+
+<ParamField path="reader" type="BinaryReader" required>
+  The binary reader to read from
+</ParamField>
+
+```csharp
+public override void Read(BinaryReader reader)
+{
+    reader.BaseStream.Position = Offset;
+    // Read block-specific data
+}
+```
+
+### WriteText(IndentedTextWriter)
+
+Writes the text representation of the block to an IndentedTextWriter. This is an abstract method that must be implemented by derived classes.
+
+<ParamField path="writer" type="IndentedTextWriter" required>
+  The writer to output text to
+</ParamField>
+
+```csharp
+public override void WriteText(IndentedTextWriter writer)
+{
+    writer.WriteLine($"Block Type: {Type}");
+    // Write block-specific data
+}
+```
+
+### Serialize(Stream)
+
+Writes the binary representation of the block to a stream. This is an abstract method that must be implemented by derived classes.
+
+<ParamField path="stream" type="Stream" required>
+  The stream to write to
+</ParamField>
+
+```csharp
+public override void Serialize(Stream stream)
+{
+    using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+    // Write block-specific data
+}
+```
+
+### ToString()
+
+Returns a string representation of the block by calling WriteText internally.
+
+<ResponseField name="return" type="string">
+  String representation of the block's data
+</ResponseField>
+
+```csharp
+var blockText = block.ToString();
+Console.WriteLine(blockText);
+```
+
+## Block types
+
+The following block types are commonly found in Source 2 resource files:
+
+### DATA
+
+The main data block containing the resource's primary content. The actual type depends on the resource type:
+- `Material` for materials (vmat)
+- `Model` for models (vmdl)
+- `Texture` for textures (vtex)
+- `Sound` for sounds (vsnd)
+- `ParticleSystem` for particles (vpcf)
+- And many more
+
+### RERL (Resource External Reference List)
+
+Contains a list of external resource references that this resource depends on.
+
+### REDI (Resource Edit Info)
+
+Contains dependency and compilation metadata for the resource, including:
+- Input dependencies
+- Additional related files
+- Special dependencies
+- Custom dependencies
+- Searchable user data
+
+### RED2 (Resource Edit Info 2)
+
+An updated version of REDI stored in KV3 format.
+
+### NTRO (Resource Introspection Manifest)
+
+Contains structure and enum definitions for the resource data. Legacy format, largely replaced by KV3.
+
+### VBIB (Vertex and Index Buffer Information)
+
+Contains mesh vertex and index buffer data for models and meshes.
+
+### CTRL (Control Data)
+
+Contains configuration and control data in KV3 format for sounds, models, and other resources.
+
+### MDAT (Mesh Data)
+
+Contains mesh geometry data including hitbox sets and material groups.
+
+### MRPH (Morph Data)
+
+Contains morph target (blend shape) data for meshes.
+
+### ANIM (Animation Data)
+
+Contains skeletal animation data.
+
+### PHYS (Physics Aggregate Data)
+
+Contains physics collision meshes and constraint data.
+
+### INSG (Input Signature)
+
+Contains shader input layout and signature data for materials.
+
+See the `BlockType` enum for a complete list of all supported block types.
+
+## Usage examples
+
+### Accessing block data
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+var dataBlock = resource.GetBlockByType(BlockType.DATA);
+if (dataBlock != null)
+{
+    Console.WriteLine($"Block Type: {dataBlock.Type}");
+    Console.WriteLine($"Block Size: {dataBlock.Size} bytes");
+    Console.WriteLine($"Block Offset: 0x{dataBlock.Offset:X}");
+}
+```
+
+### Reading all blocks
+
+```csharp
+using var resource = new Resource();
+resource.Read("models/example.vmdl_c");
+
+foreach (var block in resource.Blocks)
+{
+    Console.WriteLine($"\n=== {block.Type} ===");
+    Console.WriteLine($"Size: {block.Size} bytes");
+    Console.WriteLine($"Offset: 0x{block.Offset:X}");
+    Console.WriteLine("\nData:");
+    Console.WriteLine(block.ToString());
+}
+```
+
+### Checking for specific blocks
+
+```csharp
+using var resource = new Resource();
+resource.Read("models/props/example.vmdl_c");
+
+// Check for vertex buffer data
+if (resource.ContainsBlockType(BlockType.VBIB))
+{
+    var vbib = resource.GetBlockByType(BlockType.VBIB);
+    Console.WriteLine("Model has vertex buffer data");
+}
+
+// Check for external references
+if (resource.ContainsBlockType(BlockType.RERL))
+{
+    var rerl = resource.GetBlockByType(BlockType.RERL);
+    Console.WriteLine("Model has external references");
+}
+
+// Check for edit info
+if (resource.ContainsBlockType(BlockType.REDI))
+{
+    var redi = resource.GetBlockByType(BlockType.REDI);
+    Console.WriteLine("Model has edit info metadata");
+}
+```
+
+### Accessing typed blocks
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+// Cast to specific block type
+if (resource.DataBlock is Material material)
+{
+    // Work with material-specific data
+    Console.WriteLine(material.ToString());
+}
+
+// Access external references
+if (resource.ExternalReferences != null)
+{
+    Console.WriteLine("External references:");
+    // Process reference list
+}
+
+// Access edit info
+if (resource.EditInfo != null)
+{
+    Console.WriteLine("Edit info:");
+    Console.WriteLine(resource.EditInfo.ToString());
+}
+```
+
+### Getting block by index
+
+```csharp
+using var resource = new Resource();
+resource.Read("example.vmdl_c");
+
+try
+{
+    var firstBlock = resource.GetBlockByIndex(0);
+    Console.WriteLine($"First block: {firstBlock.Type}");
+    
+    var secondBlock = resource.GetBlockByIndex(1);
+    Console.WriteLine($"Second block: {secondBlock.Type}");
+}
+catch (ArgumentOutOfRangeException)
+{
+    Console.WriteLine("Block index out of range");
+}
+```
+
+## Derived block classes
+
+The library provides many concrete implementations of the Block class:
+
+- `Material` - Material definitions (vmat)
+- `Model` - 3D model data (vmdl)
+- `Texture` - Texture data (vtex)
+- `Sound` - Sound data (vsnd)
+- `ParticleSystem` - Particle system definitions (vpcf)
+- `EntityLump` - Map entity data (vents)
+- `World` - World root data (vwrld)
+- `WorldNode` - World node data (vwnod)
+- `VBIB` - Vertex and index buffers
+- `ResourceExtRefList` - External reference list
+- `ResourceEditInfo` - Edit information metadata
+- `BinaryKV3` - KeyValues3 data blocks
+- And many more
+
+## Related types
+
+- [Resource](/api/resource) - Main resource file class
+- [FileExtract](/api/file-extract) - Utility for extracting resources to files
+- `BlockType` - Enum of all supported block types

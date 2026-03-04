@@ -1,0 +1,273 @@
+---
+title: Texture
+description: API reference for the Texture class that handles texture resources with various formats and metadata
+---
+
+## Overview
+
+The `Texture` class represents a texture resource containing image data with various formats and metadata. It provides methods for decoding texture data, generating bitmaps, and handling sprite sheets.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Properties
+
+<ResponseField name="Width" type="ushort">
+  The width of the texture in pixels.
+</ResponseField>
+
+<ResponseField name="Height" type="ushort">
+  The height of the texture in pixels.
+</ResponseField>
+
+<ResponseField name="Depth" type="ushort">
+  The depth of the texture for volume textures, or the number of array slices.
+</ResponseField>
+
+<ResponseField name="ActualWidth" type="ushort">
+  The actual width of the texture, using NonPow2Width if available and valid, otherwise Width.
+</ResponseField>
+
+<ResponseField name="ActualHeight" type="ushort">
+  The actual height of the texture, using NonPow2Height if available and valid, otherwise Height.
+</ResponseField>
+
+<ResponseField name="Format" type="VTexFormat">
+  The pixel format of the texture data.
+</ResponseField>
+
+<ResponseField name="Flags" type="VTexFlags">
+  The texture flags that define various properties and behaviors.
+</ResponseField>
+
+<ResponseField name="NumMipLevels" type="byte">
+  The number of mip levels in the texture.
+</ResponseField>
+
+<ResponseField name="Reflectivity" type="Vector4">
+  The reflectivity values as a 4-component vector (RGBA).
+</ResponseField>
+
+<ResponseField name="BlockSize" type="int">
+  The block size in bytes for the current texture format.
+</ResponseField>
+
+<ResponseField name="IsHighDynamicRange" type="bool">
+  Gets whether this texture uses a high dynamic range format.
+</ResponseField>
+
+<ResponseField name="IsRawJpeg" type="bool">
+  Gets whether this texture contains raw JPEG data.
+</ResponseField>
+
+<ResponseField name="IsRawPng" type="bool">
+  Gets whether this texture contains raw PNG data.
+</ResponseField>
+
+<ResponseField name="IsRawWebp" type="bool">
+  Gets whether this texture contains raw WebP data.
+</ResponseField>
+
+<ResponseField name="ExtraData" type="Dictionary<VTexExtraData, byte[]>">
+  The dictionary containing extra data blocks associated with the texture.
+</ResponseField>
+
+## Methods
+
+### GenerateBitmap
+
+Generate a bitmap for given parameters.
+
+```csharp
+public SKBitmap GenerateBitmap(
+    uint depth = 0,
+    CubemapFace face = 0,
+    uint mipLevel = 0,
+    TextureCodec decodeFlags = TextureCodec.Auto
+)
+```
+
+<ParamField path="depth" type="uint" default="0">
+  The depth to extract.
+</ParamField>
+
+<ParamField path="face" type="CubemapFace" default="0">
+  The face to extract for cube textures.
+</ParamField>
+
+<ParamField path="mipLevel" type="uint" default="0">
+  The mip level to extract.
+</ParamField>
+
+<ParamField path="decodeFlags" type="TextureCodec" default="TextureCodec.Auto">
+  The preferred codec to use when decoding the texture.
+</ParamField>
+
+**Returns:** `SKBitmap` - A Skia bitmap containing the decoded texture data.
+
+### GetSpriteSheetData
+
+Retrieves sprite sheet data if available in the texture's extra data.
+
+```csharp
+public SpritesheetData? GetSpriteSheetData()
+```
+
+**Returns:** `SpritesheetData?` - The sprite sheet data, or null if not available.
+
+### CalculateTextureDataSize
+
+Calculates the total size of texture data across all mip levels.
+
+```csharp
+public int CalculateTextureDataSize()
+```
+
+**Returns:** `int` - The total size in bytes.
+
+### CalculateBufferSizeForMipLevel
+
+Calculate buffer size that is required to hold data of specified mip level.
+
+```csharp
+public int CalculateBufferSizeForMipLevel(uint mipLevel)
+```
+
+<ParamField path="mipLevel" type="uint" required>
+  Mip level for which to calculate buffer size.
+</ParamField>
+
+**Returns:** `int` - Buffer size in bytes.
+
+### GetEveryMipLevelTexture
+
+Get every mip level size starting from the smallest one. Used when uploading textures to the GPU.
+
+```csharp
+public IEnumerable<(uint Level, int Width, int Height, int Depth, int BufferSize)> GetEveryMipLevelTexture(
+    byte[] buffer,
+    int minMipLevelAllowed = 0
+)
+```
+
+<ParamField path="buffer" type="byte[]" required>
+  Buffer to use when yielding textures. Should be size of GetBiggestBufferSize() or bigger. This buffer is reused for every mip level.
+</ParamField>
+
+<ParamField path="minMipLevelAllowed" type="int" default="0">
+  The minimum mip level for which to read texture data.
+</ParamField>
+
+**Returns:** Enumerable of tuples containing level, width, height, depth, and buffer size for each mip level.
+
+### ReadTextureMipLevel
+
+Read single mip level of texture.
+
+```csharp
+public void ReadTextureMipLevel(Span<byte> output, uint mipLevel)
+```
+
+<ParamField path="output" type="Span<byte>" required>
+  Buffer that will receive texture data. Size must be at least CalculateBufferSizeForMipLevel(mipLevel).
+</ParamField>
+
+<ParamField path="mipLevel" type="uint" required>
+  Mip level for which to read texture data.
+</ParamField>
+
+### RetrieveCodecFromResourceEditInfo
+
+Retrieves the texture codec information from the resource's edit info.
+
+```csharp
+public TextureCodec RetrieveCodecFromResourceEditInfo()
+```
+
+**Returns:** `TextureCodec` - The texture codec flags derived from the edit info.
+
+## Enumerations
+
+### CubemapFace
+
+Defines the six faces of a cubemap texture.
+
+- `PositiveX` - Right face
+- `NegativeX` - Left face
+- `PositiveY` - Back face
+- `NegativeY` - Front face
+- `PositiveZ` - Up face
+- `NegativeZ` - Down face
+
+## Nested Types
+
+### SpritesheetData
+
+Contains data for sprite sheet animations and sequences.
+
+**Properties:**
+- `Sequences` (Sequence[]) - The array of animation sequences in this sprite sheet
+
+### SpritesheetData.Sequence
+
+Represents an animation sequence within a sprite sheet.
+
+**Properties:**
+- `Name` (string) - The name of this sequence
+- `Frames` (Frame[]) - The array of frames in this sequence
+- `FramesPerSecond` (float) - The playback rate in frames per second
+- `Clamp` (bool) - Whether this sequence should clamp at the end
+- `AlphaCrop` (bool) - Whether alpha cropping is enabled
+- `NoColor` (bool) - Whether color information should be ignored
+- `NoAlpha` (bool) - Whether alpha information should be ignored
+- `FloatParams` (Dictionary&lt;string, float&gt;) - Dictionary of floating-point parameters
+
+## Accessing from Resource
+
+Texture data is accessed from the DATA block of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/texture.vtex_c");
+
+var texture = (Texture)resource.DataBlock;
+
+// Get texture dimensions
+var width = texture.ActualWidth;
+var height = texture.ActualHeight;
+
+// Generate a bitmap
+var bitmap = texture.GenerateBitmap();
+
+// Check for sprite sheet data
+var spriteSheet = texture.GetSpriteSheetData();
+if (spriteSheet != null)
+{
+    foreach (var sequence in spriteSheet.Sequences)
+    {
+        Console.WriteLine($"Sequence: {sequence.Name}, Frames: {sequence.Frames.Length}");
+    }
+}
+```
+
+## Example: Reading texture information
+
+```csharp
+var texture = (Texture)resource.DataBlock;
+
+Console.WriteLine($"Format: {texture.Format}");
+Console.WriteLine($"Dimensions: {texture.ActualWidth}x{texture.ActualHeight}");
+Console.WriteLine($"Mip Levels: {texture.NumMipLevels}");
+Console.WriteLine($"HDR: {texture.IsHighDynamicRange}");
+
+if ((texture.Flags & VTexFlags.CUBE_TEXTURE) != 0)
+{
+    Console.WriteLine("This is a cubemap texture");
+    
+    // Generate bitmap for each cubemap face
+    for (var face = 0; face < 6; face++)
+    {
+        var bitmap = texture.GenerateBitmap(face: (Texture.CubemapFace)face);
+        // Use bitmap...
+    }
+}
+```

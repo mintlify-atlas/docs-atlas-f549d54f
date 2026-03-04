@@ -1,80 +1,376 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Learn how to parse Source 2 resource files and extract data with ValveResourceFormat
 ---
 
-## Get started in three steps
+This guide walks you through parsing a Source 2 resource file and extracting data using ValveResourceFormat.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before starting, ensure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+- Installed ValveResourceFormat ([see installation guide](/installation))
+- A Source 2 resource file to parse (files ending with `_c` like `.vtex_c`, `.vmdl_c`, `.vmat_c`)
+
+<Note>
+You can find Source 2 resource files in games like Dota 2, Half-Life: Alyx, Counter-Strike 2, or Deadlock. Files are typically located in VPK archives in the game's installation directory.
+</Note>
+
+## Basic resource parsing
+
+The `Resource` class is the entry point for parsing any Source 2 resource file:
+
+```csharp
+using ValveResourceFormat;
+
+// Open and read a resource file
+using var resource = new Resource();
+resource.Read("path/to/file.vtex_c");
+
+// Access basic information
+Console.WriteLine($"Resource type: {resource.ResourceType}");
+Console.WriteLine($"File size: {resource.FileSize} bytes");
+Console.WriteLine($"Version: {resource.Version}");
+Console.WriteLine($"Block count: {resource.Blocks.Count}");
+```
+
+<Steps>
+  <Step title="Create a Resource instance">
+    The `Resource` class implements `IDisposable`, so use it with a `using` statement to ensure proper cleanup:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```csharp
+    using var resource = new Resource();
+    ```
+  </Step>
+  
+  <Step title="Read the file">
+    Call the `Read()` method with the file path:
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    ```csharp
+    resource.Read("textures/debug.vtex_c");
+    ```
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    The library will automatically detect the resource type based on the file extension.
+  </Step>
+  
+  <Step title="Access the data">
+    Once read, you can access blocks and data on the `resource` object:
+    
+    ```csharp
+    var dataBlock = resource.DataBlock;
+    var resourceType = resource.ResourceType;
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Reading from a stream
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+You can also read from a `Stream` instead of a file path:
 
-### Step 3: Go live
+```csharp
+using var fileStream = File.OpenRead("path/to/file.vtex_c");
+using var resource = new Resource()
+{
+    FileName = "path/to/file.vtex_c" // Optional but recommended
+};
+resource.Read(fileStream);
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+// Access the data
+var texture = (Texture?)resource.DataBlock;
+```
+
+<Note>
+Setting `FileName` helps the library determine the resource type if it can't be inferred from the stream.
+</Note>
+
+## Working with blocks
+
+Source 2 resources are organized into blocks. Here's how to access them:
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.Blocks;
+
+using var resource = new Resource();
+resource.Read("model.vmdl_c");
+
+// Get the DATA block
+var dataBlock = resource.DataBlock;
+
+// Get external references
+var externalRefs = resource.ExternalReferences;
+
+// Get a specific block by type
+var vbibBlock = resource.GetBlockByType(BlockType.VBIB);
+
+// Check if a block exists
+if (resource.ContainsBlockType(BlockType.RERL))
+{
+    Console.WriteLine("Resource has external references");
+}
+
+// Iterate through all blocks
+foreach (var block in resource.Blocks)
+{
+    Console.WriteLine($"Block type: {block.Type}, Size: {block.Size}");
+}
+```
+
+## Example: Extracting a texture
+
+Here's a complete example of extracting a texture as PNG:
+
+<CodeGroup>
+```csharp Simple extraction
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.IO;
+
+using var resource = new Resource();
+resource.Read("textures/debug.vtex_c");
+
+// Cast the DataBlock to Texture
+var texture = (Texture)resource.DataBlock;
+
+// Generate a bitmap
+using var bitmap = texture.GenerateBitmap();
+
+// Convert to PNG
+var pngBytes = TextureExtract.ToPngImage(bitmap);
+
+// Save to file
+File.WriteAllBytes("output.png", pngBytes);
+```
+
+```csharp With error handling
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.IO;
+
+try
+{
+    using var resource = new Resource();
+    resource.Read("textures/debug.vtex_c");
+    
+    if (resource.ResourceType != ResourceType.Texture)
+    {
+        Console.WriteLine($"Expected texture, got {resource.ResourceType}");
+        return;
+    }
+    
+    var texture = (Texture)resource.DataBlock;
+    using var bitmap = texture.GenerateBitmap();
+    var pngBytes = TextureExtract.ToPngImage(bitmap);
+    
+    File.WriteAllBytes("output.png", pngBytes);
+    Console.WriteLine("Texture extracted successfully!");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error: {ex.Message}");
+}
+```
+</CodeGroup>
+
+## Example: Reading from VPK archives
+
+Source 2 resources are often stored in VPK archive files. Use the [ValvePak library](https://github.com/ValveResourceFormat/ValvePak) to read them:
+
+```csharp
+using SteamDatabase.ValvePak;
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.IO;
+
+// Open the VPK package
+using var package = new Package();
+package.Read("pak01_dir.vpk");
+
+// Find a file in the package
+var entry = package.FindEntry("textures/debug.vtex_c");
+if (entry == null)
+{
+    Console.WriteLine("File not found in package");
+    return;
+}
+
+// Read the file data
+package.ReadEntry(entry, out var fileData);
+
+// Parse as a resource
+using var memoryStream = new MemoryStream(fileData);
+using var resource = new Resource()
+{
+    FileName = entry.GetFullPath()
+};
+resource.Read(memoryStream);
+
+// Extract the texture
+var texture = (Texture)resource.DataBlock;
+using var bitmap = texture.GenerateBitmap();
+var pngBytes = TextureExtract.ToPngImage(bitmap);
+
+File.WriteAllBytes("output.png", pngBytes);
+Console.WriteLine($"Extracted {entry.GetFullPath()}");
+```
+
+## Example: Working with entity lumps
+
+Entity lumps contain map entity data:
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+
+using var resource = new Resource()
+{
+    FileName = "maps/example.vents_c"
+};
+resource.Read("maps/example.vents_c");
+
+var entityLump = (EntityLump)resource.DataBlock;
+
+// Get all entities
+var entities = entityLump.GetEntities();
+
+foreach (var entity in entities)
+{
+    // Get the classname property
+    var classname = entity.GetProperty<string>("classname");
+    Console.WriteLine($"Entity: {classname}");
+    
+    // Access properties
+    var properties = entity.Properties.Properties;
+    Console.WriteLine($"  Properties: {properties.Count}");
+}
+```
+
+## Using FileExtract helper
+
+The `FileExtract` utility automatically handles extraction for various resource types:
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.IO;
+
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+// Extract with automatic format detection
+using var contentFile = FileExtract.Extract(resource, null);
+
+// Write the main file
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+
+// Write sub-files (e.g., referenced textures)
+foreach (var subFile in contentFile.SubFiles)
+{
+    var subFileData = subFile.Extract();
+    var outputPath = Path.Combine(
+        Path.GetDirectoryName(contentFile.FileName) ?? "",
+        subFile.FileName
+    );
+    
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "");
+    File.WriteAllBytes(outputPath, subFileData);
+}
+```
+
+## Common resource types
+
+Here are the most common resource types you'll work with:
+
+<CardGroup cols={2}>
+  <Card title="Texture (vtex)" icon="image">
+    ```csharp
+    var texture = (Texture)resource.DataBlock;
+    var bitmap = texture.GenerateBitmap();
+    var png = TextureExtract.ToPngImage(bitmap);
+    ```
+  </Card>
+  
+  <Card title="Material (vmat)" icon="paint-brush">
+    ```csharp
+    var material = (Material)resource.DataBlock;
+    var shaderName = material.GetShaderName();
+    var textures = material.GetTextures();
+    ```
+  </Card>
+  
+  <Card title="Model (vmdl)" icon="cube">
+    ```csharp
+    var model = (Model)resource.DataBlock;
+    var meshes = model.GetEmbeddedMeshes();
+    var skeleton = model.GetSkeleton();
+    ```
+  </Card>
+  
+  <Card title="Sound (vsnd)" icon="volume">
+    ```csharp
+    var sound = (Sound)resource.DataBlock;
+    var audioData = sound.GetSound();
+    var sampleRate = sound.SampleRate;
+    ```
+  </Card>
+</CardGroup>
+
+## Error handling
+
+Always handle potential errors when parsing resources:
+
+```csharp
+using ValveResourceFormat;
+
+try
+{
+    using var resource = new Resource();
+    resource.Read("file.vtex_c");
+    
+    // Process the resource
+}
+catch (InvalidDataException ex)
+{
+    Console.WriteLine($"Invalid resource file: {ex.Message}");
+}
+catch (UnexpectedMagicException ex)
+{
+    Console.WriteLine($"Unexpected file format: {ex.Message}");
+}
+catch (FileNotFoundException ex)
+{
+    Console.WriteLine($"File not found: {ex.Message}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Unexpected error: {ex.Message}");
+}
+```
+
+<Warning>
+Source 2 file formats may change between game updates. Always use the latest version of ValveResourceFormat to support newer formats.
+</Warning>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you understand the basics, explore more advanced topics:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="API Reference" icon="book" href="/api/resource">
+    Detailed documentation of all classes and methods
+  </Card>
+  
+  <Card title="Resource Types" icon="file-code" href="/concepts/resource-types">
+    Learn about specific resource formats
+  </Card>
+  
+  <Card title="Guides" icon="code" href="/guides/reading-resources">
+    More guides and use cases for working with Source 2 assets
+  </Card>
+  
+  <Card title="GitHub Repository" icon="github" href="https://github.com/ValveResourceFormat/ValveResourceFormat">
+    View source code and contribute
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

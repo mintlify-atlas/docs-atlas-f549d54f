@@ -1,0 +1,194 @@
+---
+title: Resource types
+description: Comprehensive guide to the 50+ Source 2 resource types supported by ValveResourceFormat
+---
+
+ValveResourceFormat supports over 50 different Source 2 resource types, each serving a specific purpose in game development. Resources are identified by their file extension and contain specialized data structures.
+
+## Core resource categories
+
+Source 2 resources are organized into several major categories based on their function.
+
+### Models and animation
+
+Resources related to 3D models, skeletal animation, and character behavior.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vmdl` | Model | 3D model created in the ModelDoc Editor |
+| `vmesh` | Mesh | Mesh geometry (legacy, stored in vmdl) |
+| `vmorf` | Morph | Morph sets for blend shapes and facial animation |
+| `vphys` | PhysicsCollisionMesh | Physics collision mesh data |
+
+### Animgraph 1 (legacy)
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vanmgrph` | AnimationGraph | Graph for animation behavior and states |
+| `vanim` | Animation | Animation file (legacy, stored in vmdl) |
+| `vagrp` | AnimationGroup | Animation group (legacy, stored in vmdl) |
+| `vseq` | Sequence | Sequence group (legacy, stored in vmdl) |
+
+### Animgraph 2
+
+The newer animation system with enhanced capabilities.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vnmgrph` | NmGraph | Animation behavior graph |
+| `vnmvar` | NmGraphVariation | Graph variations with different parameters |
+| `vnmskel` | NmSkeleton | Skeleton and bonemask data |
+| `vnmclip` | NmClip | Animation clip with event support |
+| `vnmikrig` | NmIKRig | Inverse kinematics rig data |
+
+### Textures and materials
+
+Visual appearance resources for surfaces and objects.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vtex` | Texture | Compiled texture in various formats |
+| `vmat` | Material | Material definition from Material Editor |
+| `vcompmat` | CompositeMaterial | Composite material kit (CS2 weapon skins) |
+
+### Particles and effects
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vpcf` | Particle | Particle system from Particle Editor |
+| `vpsf` | ParticleSnapshotLegacy | Legacy particle snapshot |
+| `vsnap` | ParticleSnapshot | Particle snapshot reference |
+| `vpost` | PostProcessing | Post-processing settings |
+
+### Maps and worlds
+
+Level geometry, entities, and world organization.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vmap` | Map | Map definition |
+| `vwrld` | World | World root file |
+| `vwnod` | WorldNode | World node with map geometry and scene objects |
+| `vents` | EntityLump | Entity lump containing map entities |
+| `vvis` | WorldVisibility | World visibility data in voxel clusters |
+
+### Sound
+
+Audio resources and sound event systems.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vsnd` | Sound | Sound file or sound container |
+| `vsndevts` | SoundEventScript | Sound event script definitions |
+| `vsndstck` | SoundStackScript | Sound stack with rules and operators |
+| `vmix` | VMix | Mix graph for audio mixing |
+
+### Panorama UI
+
+User interface resources for the Panorama system.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vxml` | PanoramaLayout | XML layout defining UI structure |
+| `vcss` | PanoramaStyle | CSS style defining UI appearance |
+| `vjs` | PanoramaScript | JavaScript for UI logic |
+| `vts` | PanoramaTypescript | TypeScript for UI logic |
+| `vsvg` | PanoramaVectorGraphic | SVG vector graphic |
+| `vpdi` | PanoramaDynamicImages | Dynamic images manifest |
+
+### Choreography
+
+Cinematic and character choreography resources.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vcd` | ChoreoSceneResource | Choreo scene file |
+| `vcdlist` | ChoreoSceneFileData | Combines multiple VCD files |
+
+### Game data
+
+Generic game content and configuration.
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vdata` | VData | Generic data for weapons, heroes, abilities |
+| `vrr` | ResponseRules | Response rules for voiceline playback |
+| `vsmart` | SmartProp | Smart prop with rules and parameters |
+| `vpulse` | PulseGraphDef | Pulse graph from Pulse Editor |
+| `vrman` | ResourceManifest | Resource manifest for preloading assets |
+| `valst` | ActionList | Surface property impact effects |
+| `vmks` | Sheet | Sheet file |
+
+### Game-specific resources
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `econitem` | EconItem | CS2 economy item from CS2 Item Editor |
+| `item` | ArtifactItem | Artifact item from items_game.txt |
+| `herolist` | DotaHeroList | Dota 2 hero list |
+| `vdpn` | DotaPatchNotes | Dota 2 patch notes |
+| `vdvn` | DotaVisualNovels | Dota 2 visual novels |
+
+### S&box resources
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `.sbox` | SboxManagedResource | S&box managed resource (any type) |
+| `.shader` | SboxShader | S&box shader |
+
+### Other resources
+
+| Extension | Resource type | Description |
+|-----------|---------------|-------------|
+| `vfont` | BitmapFont | Bitmap font |
+| `vcs` | Shader | Compiled shader (in shaders_{platform}_dir.vpk) |
+| `vpram` | ProcessingGraphInstance | Processing graph instance |
+| `vsurf` | SurfaceProperties | Surface properties for materials |
+| `vrmap` | ResourceRemapTable | Resource remap table |
+
+## Determining resource type
+
+ValveResourceFormat determines resource types through multiple methods:
+
+1. **File extension** - The primary method, mapped through the `ResourceType` enum
+2. **Compiler identifiers** - Found in the REDI/RED2 block's special dependencies
+3. **Input dependencies** - When there's a single input dependency, its extension is used
+
+```csharp
+// Example from Resource.cs:203
+ResourceType = ResourceTypeExtensions.DetermineByFileExtension(
+    Path.GetExtension(FileName.AsSpan())
+);
+```
+
+<Note>
+Some resource types like `vmesh`, `vanim`, and `vagrp` are marked as legacy because their data is now stored directly in the `vmdl` (model) file.
+</Note>
+
+## Support status
+
+Most resource types are fully supported (👍), with a few exceptions:
+
+- `vrmap` (Resource Remap Table) - Not supported
+- `vseq` (Sequence Group) - Not supported
+- `vsurf` (Surface Properties) - Not supported
+- `vvis` (World Visibility) - Not supported
+
+Unsupported resources can still be parsed for basic information, but specialized data extraction is not available.
+
+## Resource type enum
+
+Resource types are defined in `ResourceType.cs` with friendly names and extension attributes:
+
+```csharp
+[Extension("vmdl")]
+Model,
+
+[Extension("vtex")]
+Texture,
+
+[Extension("vmat")]
+Material,
+```
+
+See the [Resource class reference](/api/resource) for more information on working with resource types.

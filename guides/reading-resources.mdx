@@ -1,0 +1,199 @@
+---
+title: Reading and parsing resource files
+description: Learn how to open and read Source 2 resource files, access their blocks, and determine resource types
+---
+
+This guide covers the basics of reading and parsing Source 2 resource files using ValveResourceFormat.
+
+## Opening a resource file
+
+The `Resource` class is the entry point for reading any Source 2 compiled resource file (files ending in `_c`).
+
+<Steps>
+
+### Create a resource instance
+
+Create a new `Resource` object and call the `Read` method:
+
+```csharp
+using ValveResourceFormat;
+
+var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+```
+
+### Access resource properties
+
+Once loaded, you can access various properties:
+
+```csharp
+// Get the resource type
+var resourceType = resource.ResourceType; // ResourceType.Material
+
+// Get file metadata
+var fileSize = resource.FileSize;
+var version = resource.Version;
+var headerVersion = resource.HeaderVersion;
+
+// Get the file name
+var fileName = resource.FileName;
+```
+
+### Dispose when done
+
+The `Resource` class implements `IDisposable`, so always dispose it when finished:
+
+```csharp
+using var resource = new Resource();
+resource.Read("models/example.vmdl_c");
+
+// Work with the resource...
+
+// Automatically disposed when leaving scope
+```
+
+</Steps>
+
+## Reading from a stream
+
+You can also read from any `Stream`:
+
+```csharp
+using var fileStream = File.OpenRead("textures/example.vtex_c");
+using var resource = new Resource();
+resource.Read(fileStream);
+```
+
+The stream must remain open while working with the resource, as some operations read data lazily.
+
+## Accessing blocks
+
+Resources are divided into blocks. Each block contains different types of data.
+
+### Get the DATA block
+
+The DATA block contains the main resource data:
+
+```csharp
+var dataBlock = resource.DataBlock;
+
+if (dataBlock != null)
+{
+    // Cast to the appropriate type based on ResourceType
+    if (resource.ResourceType == ResourceType.Texture)
+    {
+        var texture = (Texture)dataBlock;
+        Console.WriteLine($"Texture size: {texture.Width}x{texture.Height}");
+    }
+}
+```
+
+### Get blocks by type
+
+You can retrieve specific blocks using `GetBlockByType`:
+
+```csharp
+using ValveResourceFormat.Blocks;
+
+// Get the resource edit info block
+var editInfo = resource.EditInfo;
+
+// Get external references
+var externalRefs = resource.ExternalReferences;
+
+// Get a specific block type
+var vbibBlock = resource.GetBlockByType(BlockType.VBIB);
+```
+
+### Iterate through all blocks
+
+You can access all blocks in the resource:
+
+```csharp
+foreach (var block in resource.Blocks)
+{
+    Console.WriteLine($"Block type: {block.Type}, Size: {block.Size} bytes");
+}
+```
+
+## Determining resource type
+
+The resource type is automatically determined when reading:
+
+```csharp
+var resource = new Resource();
+resource.Read("particles/example.vpcf_c");
+
+switch (resource.ResourceType)
+{
+    case ResourceType.Particle:
+        var particles = (ParticleSystem)resource.DataBlock!;
+        break;
+    
+    case ResourceType.Model:
+        var model = (Model)resource.DataBlock!;
+        break;
+    
+    case ResourceType.Material:
+        var material = (Material)resource.DataBlock!;
+        break;
+    
+    // Handle other types...
+}
+```
+
+## Resource type determination
+
+The resource type is determined by:
+
+1. File extension (e.g., `.vmat_c` → `ResourceType.Material`)
+2. Compiler identifiers in the edit info block
+3. Input dependencies if there's only one
+
+## Error handling
+
+Always handle potential exceptions:
+
+```csharp
+try
+{
+    using var resource = new Resource();
+    resource.Read("invalid_file.vtex_c");
+}
+catch (InvalidDataException ex)
+{
+    Console.WriteLine($"Invalid resource file: {ex.Message}");
+}
+catch (UnexpectedMagicException ex)
+{
+    Console.WriteLine($"Not a valid resource: {ex.Message}");
+}
+```
+
+## Common patterns
+
+### Check if a block exists
+
+```csharp
+if (resource.ContainsBlockType(BlockType.VBIB))
+{
+    var vbib = (VBIB)resource.GetBlockByType(BlockType.VBIB)!;
+    // Work with vertex/index buffers
+}
+```
+
+### Get block by index
+
+```csharp
+if (resource.Blocks.Count > 0)
+{
+    var firstBlock = resource.GetBlockByIndex(0);
+    Console.WriteLine($"First block type: {firstBlock.Type}");
+}
+```
+
+## Next steps
+
+- [Extract textures to PNG/TGA](/guides/extracting-textures)
+- [Work with models and meshes](/guides/working-with-models)
+- [Parse material files](/guides/parsing-materials)

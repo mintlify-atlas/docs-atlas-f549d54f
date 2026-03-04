@@ -1,0 +1,245 @@
+---
+title: Extracting textures to PNG/TGA
+description: Extract and convert Source 2 textures to standard image formats like PNG, TGA, and EXR
+---
+
+This guide shows how to extract textures from compiled Source 2 texture files (`.vtex_c`) to common image formats.
+
+## Basic texture extraction
+
+<Steps>
+
+### Load the texture resource
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+
+using var resource = new Resource();
+resource.Read("materials/example.vtex_c");
+
+var texture = (Texture)resource.DataBlock!;
+```
+
+### Generate a bitmap
+
+```csharp
+using SkiaSharp;
+
+using var bitmap = texture.GenerateBitmap();
+Console.WriteLine($"Generated bitmap: {bitmap.Width}x{bitmap.Height}");
+```
+
+### Export to PNG
+
+```csharp
+using ValveResourceFormat.IO;
+
+var pngBytes = TextureExtract.ToPngImage(bitmap);
+File.WriteAllBytes("output.png", pngBytes);
+```
+
+</Steps>
+
+## Using FileExtract helper
+
+The `FileExtract` class provides a high-level API:
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vtex_c");
+
+using var contentFile = FileExtract.Extract(resource, fileLoader: null);
+
+// Write main file
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes("output.vtex", contentFile.Data);
+}
+
+// Write sub-files (images)
+foreach (var subFile in contentFile.SubFiles)
+{
+    var imageData = subFile.Extract!();
+    File.WriteAllBytes(subFile.FileName, imageData);
+}
+```
+
+## Working with texture properties
+
+### Check texture format and dimensions
+
+```csharp
+var texture = (Texture)resource.DataBlock!;
+
+Console.WriteLine($"Format: {texture.Format}");
+Console.WriteLine($"Dimensions: {texture.Width}x{texture.Height}");
+Console.WriteLine($"Depth: {texture.Depth}");
+Console.WriteLine($"Mip levels: {texture.NumMipLevels}");
+Console.WriteLine($"Flags: {texture.Flags}");
+
+// Get actual dimensions (accounting for non-power-of-2)
+Console.WriteLine($"Actual size: {texture.ActualWidth}x{texture.ActualHeight}");
+```
+
+### Check for special texture types
+
+```csharp
+if (texture.Flags.HasFlag(VTexFlags.CUBE_TEXTURE))
+{
+    Console.WriteLine("This is a cubemap texture");
+}
+
+if (texture.Flags.HasFlag(VTexFlags.VOLUME_TEXTURE))
+{
+    Console.WriteLine("This is a 3D volume texture");
+}
+
+if (texture.IsHighDynamicRange)
+{
+    Console.WriteLine("This is an HDR texture");
+}
+```
+
+## Extracting specific mip levels
+
+You can extract a specific mipmap level:
+
+```csharp
+// Generate bitmap for mip level 2
+using var mipBitmap = texture.GenerateBitmap(mipLevel: 2);
+
+var pngBytes = TextureExtract.ToPngImage(mipBitmap);
+File.WriteAllBytes("mip_level_2.png", pngBytes);
+```
+
+## Extracting cubemap faces
+
+For cubemap textures, extract individual faces:
+
+```csharp
+if (texture.Flags.HasFlag(VTexFlags.CUBE_TEXTURE))
+{
+    var faceNames = new[] { "right", "left", "back", "front", "up", "down" };
+    
+    for (int i = 0; i < 6; i++)
+    {
+        using var faceBitmap = texture.GenerateBitmap(
+            face: (Texture.CubemapFace)i
+        );
+        
+        var pngBytes = TextureExtract.ToPngImage(faceBitmap);
+        File.WriteAllBytes($"cubemap_{faceNames[i]}.png", pngBytes);
+    }
+}
+```
+
+## Extracting texture arrays
+
+For texture arrays (depth > 1), extract each slice:
+
+```csharp
+if (texture.Depth > 1 && !texture.Flags.HasFlag(VTexFlags.CUBE_TEXTURE))
+{
+    for (uint depth = 0; depth < texture.Depth; depth++)
+    {
+        using var sliceBitmap = texture.GenerateBitmap(depth: depth);
+        var pngBytes = TextureExtract.ToPngImage(sliceBitmap);
+        File.WriteAllBytes($"array_slice_{depth}.png", pngBytes);
+    }
+}
+```
+
+## HDR texture extraction
+
+For HDR textures, export to EXR format:
+
+```csharp
+if (texture.IsHighDynamicRange)
+{
+    using var bitmap = texture.GenerateBitmap();
+    var exrBytes = TextureExtract.ToExrImage(bitmap);
+    File.WriteAllBytes("output.exr", exrBytes);
+}
+```
+
+## Using TextureExtract class
+
+The `TextureExtract` class provides more control:
+
+```csharp
+var textureExtract = new TextureExtract(resource)
+{
+    DecodeFlags = TextureDecoders.TextureCodec.Auto,
+    LatLongCombineCubemap = true // Combine cubemap to latlong for HDR
+};
+
+using var contentFile = textureExtract.ToContentFile();
+
+foreach (var subFile in contentFile.SubFiles)
+{
+    var data = subFile.Extract!();
+    File.WriteAllBytes(subFile.FileName, data);
+}
+```
+
+## Extracting raw compressed data
+
+For textures with raw image data (PNG, JPEG, WebP):
+
+```csharp
+if (texture.IsRawPng)
+{
+    var rawData = texture.ReadRawImageData();
+    File.WriteAllBytes("raw_texture.png", rawData!);
+}
+else if (texture.IsRawJpeg)
+{
+    var rawData = texture.ReadRawImageData();
+    File.WriteAllBytes("raw_texture.jpg", rawData!);
+}
+```
+
+## Reading texture data for GPU upload
+
+For rendering, you can read texture data directly:
+
+```csharp
+// Get buffer size needed for mip level 0
+var bufferSize = texture.CalculateBufferSizeForMipLevel(0);
+var buffer = new byte[bufferSize];
+
+// Read texture data into buffer
+texture.ReadTextureMipLevel(buffer, mipLevel: 0);
+
+// Upload to GPU...
+```
+
+## Iterating through all mip levels
+
+```csharp
+var buffer = new byte[texture.GetBiggestBufferSize()];
+
+foreach (var (level, width, height, depth, size) in texture.GetEveryMipLevelTexture(buffer))
+{
+    Console.WriteLine($"Mip {level}: {width}x{height}x{depth}, {size} bytes");
+    // Buffer now contains this mip level's data
+    // Upload to GPU or process...
+}
+```
+
+## Supported texture formats
+
+ValveResourceFormat supports these texture formats:
+
+- **Block Compressed**: DXT1, DXT5, BC6H, BC7, ATI1N, ATI2N
+- **ETC**: ETC2, ETC2_EAC  
+- **Uncompressed**: RGBA8888, BGRA8888, I8, IA88
+- **Float formats**: R16F, RG1616F, RGBA16161616F, R32F, RG3232F, RGB323232F, RGBA32323232F
+- **Raw formats**: PNG, JPEG, WebP (stored as-is in the file)
+
+## Next steps
+
+- [Work with models and meshes](/guides/working-with-models)
+- [Parse material files](/guides/parsing-materials)
+- [Browse VPK archives](/guides/vpk-archives)

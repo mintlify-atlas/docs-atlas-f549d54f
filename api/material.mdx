@@ -1,0 +1,205 @@
+---
+title: Material
+description: API reference for the Material class that represents material resources with shader parameters
+---
+
+## Overview
+
+The `Material` class represents a material resource containing shader parameters and texture references. It provides access to shader arguments, material attributes, and the vertex shader input signature.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Properties
+
+<ResponseField name="Name" type="string">
+  The material name.
+</ResponseField>
+
+<ResponseField name="ShaderName" type="string">
+  The shader name used by this material.
+</ResponseField>
+
+<ResponseField name="IntParams" type="Dictionary<string, long>">
+  The integer shader parameters.
+</ResponseField>
+
+<ResponseField name="FloatParams" type="Dictionary<string, float>">
+  The floating-point shader parameters.
+</ResponseField>
+
+<ResponseField name="VectorParams" type="Dictionary<string, Vector4>">
+  The vector shader parameters.
+</ResponseField>
+
+<ResponseField name="TextureParams" type="Dictionary<string, string>">
+  The texture shader parameters mapping parameter names to texture paths.
+</ResponseField>
+
+<ResponseField name="IntAttributes" type="Dictionary<string, long>">
+  The integer material attributes.
+</ResponseField>
+
+<ResponseField name="FloatAttributes" type="Dictionary<string, float>">
+  The floating-point material attributes.
+</ResponseField>
+
+<ResponseField name="VectorAttributes" type="Dictionary<string, Vector4>">
+  The vector material attributes.
+</ResponseField>
+
+<ResponseField name="StringAttributes" type="Dictionary<string, string>">
+  The string material attributes.
+</ResponseField>
+
+<ResponseField name="DynamicExpressions" type="Dictionary<string, string>">
+  The evaluated dynamic expressions for dynamic scalar and texture parameters.
+</ResponseField>
+
+<ResponseField name="InputSignature" type="VsInputSignature">
+  The vertex shader input signature defining vertex attributes.
+</ResponseField>
+
+## Methods
+
+### GetShaderArguments
+
+Gets the shader arguments from integer parameters starting with "F_".
+
+```csharp
+public Dictionary<string, byte> GetShaderArguments()
+```
+
+**Returns:** `Dictionary<string, byte>` - Dictionary of shader argument names and values.
+
+### FindD3DInputSignatureElement
+
+Finds an input signature element by Direct3D semantic name and index.
+
+```csharp
+public static InputSignatureElement FindD3DInputSignatureElement(
+    VsInputSignature insg,
+    string d3dName,
+    int d3dIndex
+)
+```
+
+<ParamField path="insg" type="VsInputSignature" required>
+  The input signature to search.
+</ParamField>
+
+<ParamField path="d3dName" type="string" required>
+  The Direct3D semantic name.
+</ParamField>
+
+<ParamField path="d3dIndex" type="int" required>
+  The Direct3D semantic index.
+</ParamField>
+
+**Returns:** `InputSignatureElement` - The matching element, or default if not found.
+
+## Nested Types
+
+### VsInputSignature
+
+Represents the vertex shader input signature containing vertex attribute elements.
+
+**Properties:**
+- `Elements` (InputSignatureElement[]) - The array of input signature elements
+
+**Static Members:**
+- `Empty` (VsInputSignature) - An empty input signature with no elements
+
+### InputSignatureElement
+
+Represents a single element in the vertex shader input signature.
+
+**Properties:**
+- `Name` (string) - The element name
+- `Semantic` (string) - The semantic name
+- `D3DSemanticName` (string) - The Direct3D semantic name
+- `D3DSemanticIndex` (int) - The Direct3D semantic index
+
+## Accessing from Resource
+
+Material data is accessed from the DATA block of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/material.vmat_c");
+
+var material = (Material)resource.DataBlock;
+
+// Access material properties
+var shaderName = material.ShaderName;
+var materialName = material.Name;
+
+// Get texture parameters
+foreach (var (name, path) in material.TextureParams)
+{
+    Console.WriteLine($"Texture {name}: {path}");
+}
+
+// Get shader arguments (F_ parameters)
+var shaderArgs = material.GetShaderArguments();
+foreach (var (name, value) in shaderArgs)
+{
+    Console.WriteLine($"Shader Arg {name}: {value}");
+}
+```
+
+## Example: Reading material parameters
+
+```csharp
+var material = (Material)resource.DataBlock;
+
+Console.WriteLine($"Material: {material.Name}");
+Console.WriteLine($"Shader: {material.ShaderName}");
+
+// Float parameters
+foreach (var (name, value) in material.FloatParams)
+{
+    Console.WriteLine($"  {name} = {value}");
+}
+
+// Vector parameters
+foreach (var (name, value) in material.VectorParams)
+{
+    Console.WriteLine($"  {name} = ({value.X}, {value.Y}, {value.Z}, {value.W})");
+}
+
+// Texture references
+foreach (var (name, path) in material.TextureParams)
+{
+    Console.WriteLine($"  {name} -> {path}");
+}
+
+// Check vertex input signature
+if (material.InputSignature.Elements.Length > 0)
+{
+    Console.WriteLine("Vertex Inputs:");
+    foreach (var element in material.InputSignature.Elements)
+    {
+        Console.WriteLine($"  {element.Name} ({element.Semantic})");
+    }
+}
+```
+
+## Example: Loading material textures
+
+```csharp
+var material = (Material)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+foreach (var (paramName, texturePath) in material.TextureParams)
+{
+    if (!string.IsNullOrEmpty(texturePath))
+    {
+        using var textureResource = fileLoader.LoadFileCompiled(texturePath);
+        if (textureResource?.DataBlock is Texture texture)
+        {
+            var bitmap = texture.GenerateBitmap();
+            Console.WriteLine($"{paramName}: {texture.ActualWidth}x{texture.ActualHeight}");
+        }
+    }
+}
+```

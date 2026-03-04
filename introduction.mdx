@@ -1,0 +1,99 @@
+---
+title: Introduction
+description: Overview of ValveResourceFormat library for parsing Valve's Source 2 resource files
+---
+
+ValveResourceFormat (VRF) is a C# library for parsing, decompiling, and exporting Valve's Source 2 resource file formats. It provides a comprehensive toolkit for working with compiled game assets from Source 2 engine games like Dota 2, Half-Life: Alyx, Counter-Strike 2, and Deadlock.
+
+## What is ValveResourceFormat?
+
+ValveResourceFormat is the core library component of the [Source 2 Viewer](https://s2v.app/) project. It enables developers to:
+
+- **Parse** compiled Source 2 resource files (files ending with `_c` suffix)
+- **Extract** game assets like textures, models, materials, maps, and particles
+- **Decompile** binary formats to human-readable representations
+- **Export** assets to standard formats (PNG, glTF, etc.)
+
+<Note>
+Source 2 resource files are binary container files that use a block-based structure. Different types of data are stored in separate blocks, allowing the engine to load only the data it needs.
+</Note>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Extensive format support" icon="file-code">
+    Supports 80+ resource types including models (vmdl), textures (vtex), materials (vmat), maps (vmap/vwrld), particles (vpcf), sounds (vsnd), and more
+  </Card>
+  
+  <Card title="Modern C# API" icon="code">
+    Built with .NET 10.0 using modern C# features including nullable reference types, pattern matching, and AOT compilation support
+  </Card>
+  
+  <Card title="Block-based parsing" icon="cubes">
+    Efficient parsing of Source 2's block-based format with support for DATA, RERL, NTRO, VBIB, and other block types
+  </Card>
+  
+  <Card title="Asset extraction" icon="file-export">
+    Extract textures to PNG, models to glTF, and other formats with built-in conversion utilities
+  </Card>
+</CardGroup>
+
+## Supported resource types
+
+ValveResourceFormat supports a wide range of Source 2 file formats:
+
+- **Visual assets**: Models (vmdl), textures (vtex), materials (vmat), meshes (vmesh)
+- **Level data**: Maps (vmap), worlds (vwrld), world nodes (vwnod), entity lumps (vents)
+- **Animation**: Animations (vanim), animation groups (vagrp), animation graphs (vanmgrph)
+- **Audio**: Sounds (vsnd), sound events (vsndevts), sound stacks (vsndstck)
+- **Particles**: Particle systems (vpcf), particle snapshots (vsnap)
+- **UI**: Panorama layouts (vxml), styles (vcss), scripts (vjs/vts)
+- **Data**: KeyValues3 (vdata), compiled shaders (vcs), physics (vphys)
+
+<Note>
+View the complete list of [supported resource types](https://github.com/ValveResourceFormat/ValveResourceFormat#readme) in the project README.
+</Note>
+
+## Who is this for?
+
+ValveResourceFormat is designed for:
+
+- **Game developers** analyzing Source 2 asset formats
+- **Modders** extracting and modifying game content
+- **Researchers** studying game engine architecture
+- **Tool developers** building utilities for Source 2 games
+
+<Warning>
+This library is based entirely on reverse engineering as Valve does not provide Source 2 documentation. Not all formats are fully supported, and file formats may change between game updates.
+</Warning>
+
+## Breaking changes notice
+
+The primary user of this library is the Source 2 Viewer application. As such:
+
+- Updates may contain **breaking changes** and backwards incompatible API changes
+- Source 2 games themselves may update and change file formats at any time
+- **If you need to support newer file formats, you will need to update the library**
+- The library aims to support older formats going back to the first Source 2 project
+
+## Architecture overview
+
+The library is organized into several key namespaces:
+
+- `ValveResourceFormat` - Core resource parsing and the `Resource` class
+- `ValveResourceFormat.ResourceTypes` - Specific resource type implementations (Texture, Model, Material, etc.)
+- `ValveResourceFormat.Blocks` - Block implementations (DATA, RERL, VBIB, etc.)
+- `ValveResourceFormat.IO` - File extraction utilities (FileExtract, TextureExtract, ModelExtract)
+- `ValveResourceFormat.Serialization` - KeyValues and other serialization formats
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install ValveResourceFormat via NuGet
+  </Card>
+  
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Get started with parsing your first resource
+  </Card>
+</CardGroup>

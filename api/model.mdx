@@ -1,0 +1,320 @@
+---
+title: Model
+description: API reference for the Model class that represents model resources with meshes, skeleton, and animations
+---
+
+## Overview
+
+The `Model` class represents a model resource containing meshes, skeleton, animations, and related data. It provides methods for accessing embedded and referenced meshes, animations, physics data, and material groups.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Properties
+
+<ResponseField name="Name" type="string">
+  The model name.
+</ResponseField>
+
+<ResponseField name="Skeleton" type="Skeleton">
+  The skeleton for this model.
+</ResponseField>
+
+<ResponseField name="FlexControllers" type="FlexController[]">
+  The flex controllers for this model.
+</ResponseField>
+
+<ResponseField name="HitboxSets" type="Dictionary<string, Hitbox[]>">
+  The hitbox sets for this model.
+</ResponseField>
+
+<ResponseField name="Attachments" type="Dictionary<string, Attachment>">
+  The attachments for this model.
+</ResponseField>
+
+<ResponseField name="KeyValues" type="KVObject">
+  The key-values data from the model info.
+</ResponseField>
+
+## Methods
+
+### GetEmbeddedMeshes
+
+Gets embedded meshes from the model.
+
+```csharp
+public IEnumerable<(Mesh Mesh, int MeshIndex, string Name)> GetEmbeddedMeshes()
+```
+
+**Returns:** Enumerable of tuples containing mesh, mesh index, and name.
+
+### GetEmbeddedMeshesAndLoD
+
+Gets embedded meshes with their LoD masks.
+
+```csharp
+public IEnumerable<(Mesh Mesh, int MeshIndex, string Name, long LoDMask)> GetEmbeddedMeshesAndLoD()
+```
+
+**Returns:** Enumerable of tuples containing mesh, mesh index, name, and LoD mask.
+
+### GetReferenceMeshNamesAndLoD
+
+Gets referenced mesh names and their LoD masks.
+
+```csharp
+public IEnumerable<(int MeshIndex, string MeshName, long LoDMask)> GetReferenceMeshNamesAndLoD()
+```
+
+**Returns:** Enumerable of tuples containing mesh index, mesh name, and LoD mask.
+
+### GetRemapTable
+
+Get the bone remap table of a specific mesh. This is used to remap bone indices in the mesh VBIB to bone indices of the model skeleton.
+
+```csharp
+public int[]? GetRemapTable(int meshIndex)
+```
+
+<ParamField path="meshIndex" type="int" required>
+  The mesh index.
+</ParamField>
+
+**Returns:** `int[]?` - The remap table, or null if not available.
+
+### GetAllAnimations
+
+Gets all animations from this model including embedded, referenced, and animation groups.
+
+```csharp
+public IEnumerable<Animation> GetAllAnimations(IFileLoader fileLoader)
+```
+
+<ParamField path="fileLoader" type="IFileLoader" required>
+  The file loader to use.
+</ParamField>
+
+**Returns:** Enumerable of all animations.
+
+### GetEmbeddedAnimations
+
+Gets embedded animations from the model.
+
+```csharp
+public IEnumerable<Animation> GetEmbeddedAnimations()
+```
+
+**Returns:** Enumerable of animations.
+
+### GetReferencedAnimations
+
+Gets animations referenced from other models.
+
+```csharp
+public IEnumerable<Animation> GetReferencedAnimations(IFileLoader fileLoader)
+```
+
+<ParamField path="fileLoader" type="IFileLoader" required>
+  The file loader to use.
+</ParamField>
+
+**Returns:** Enumerable of animations.
+
+### GetReferencedAnimationGroupNames
+
+Gets referenced animation group names.
+
+```csharp
+public IEnumerable<string> GetReferencedAnimationGroupNames()
+```
+
+**Returns:** Enumerable of animation group names.
+
+### GetEmbeddedPhys
+
+Gets embedded physics data from the model.
+
+```csharp
+public PhysAggregateData? GetEmbeddedPhys()
+```
+
+**Returns:** `PhysAggregateData?` - The physics aggregate data, or null if not present.
+
+### GetReferencedPhysNames
+
+Gets referenced physics data names.
+
+```csharp
+public IEnumerable<string> GetReferencedPhysNames()
+```
+
+**Returns:** Enumerable of physics data names.
+
+### GetMeshGroups
+
+Gets the mesh groups defined in the model.
+
+```csharp
+public IEnumerable<string> GetMeshGroups()
+```
+
+**Returns:** Enumerable of mesh group names.
+
+### GetMaterialGroups
+
+Gets the material groups defined in the model.
+
+```csharp
+public IEnumerable<(string Name, string[] Materials)> GetMaterialGroups()
+```
+
+**Returns:** Enumerable of tuples containing material group name and materials array.
+
+### GetDefaultMeshGroups
+
+Gets the default mesh groups based on the default mesh group mask.
+
+```csharp
+public IEnumerable<string> GetDefaultMeshGroups()
+```
+
+**Returns:** Enumerable of default mesh group names.
+
+### GetFaceposerFolders
+
+Gets the faceposer folders mapping animation names to folder names.
+
+```csharp
+public Dictionary<string, string> GetFaceposerFolders()
+```
+
+**Returns:** Dictionary mapping animation names to their folder names, or empty dictionary if no folders exist.
+
+### SetExternalMeshData
+
+Populates cached mesh-related data (flex controllers, hitboxes, attachments) from an external mesh resource.
+
+```csharp
+public void SetExternalMeshData(Mesh mesh)
+```
+
+<ParamField path="mesh" type="Mesh" required>
+  The mesh providing supplemental data.
+</ParamField>
+
+### SetExternalMorphData
+
+Populates cached flex controller data from an externally loaded morph resource.
+
+```csharp
+public void SetExternalMorphData(Morph? morph)
+```
+
+<ParamField path="morph" type="Morph" required>
+  The morph data whose flex controllers should be reused.
+</ParamField>
+
+## Accessing from Resource
+
+Model data is accessed from the DATA block of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/model.vmdl_c");
+
+var model = (Model)resource.DataBlock;
+
+// Get model name
+var name = model.Name;
+
+// Get skeleton
+var skeleton = model.Skeleton;
+Console.WriteLine($"Bones: {skeleton.Bones.Length}");
+
+// Get embedded meshes
+foreach (var (mesh, meshIndex, meshName) in model.GetEmbeddedMeshes())
+{
+    Console.WriteLine($"Mesh {meshIndex}: {meshName}");
+}
+```
+
+## Example: Loading model with meshes
+
+```csharp
+var model = (Model)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+// Get embedded meshes
+foreach (var (mesh, meshIndex, meshName) in model.GetEmbeddedMeshes())
+{
+    Console.WriteLine($"Embedded Mesh: {meshName}");
+    
+    // Get bone remap table for this mesh
+    var remapTable = model.GetRemapTable(meshIndex);
+    if (remapTable != null)
+    {
+        Console.WriteLine($"  Bone remap table has {remapTable.Length} entries");
+    }
+}
+
+// Get referenced meshes
+foreach (var (meshIndex, meshName, lodMask) in model.GetReferenceMeshNamesAndLoD())
+{
+    Console.WriteLine($"Reference Mesh: {meshName} (LoD: {lodMask})");
+    
+    using var meshResource = fileLoader.LoadFileCompiled(meshName);
+    if (meshResource?.DataBlock is Mesh mesh)
+    {
+        mesh.GetBounds();
+        Console.WriteLine($"  Bounds: {mesh.MinBounds} to {mesh.MaxBounds}");
+    }
+}
+```
+
+## Example: Loading animations
+
+```csharp
+var model = (Model)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+// Get all animations (embedded + referenced)
+var animations = model.GetAllAnimations(fileLoader);
+
+foreach (var animation in animations)
+{
+    Console.WriteLine($"Animation: {animation.Name}");
+    Console.WriteLine($"  Duration: {animation.Duration} seconds");
+    Console.WriteLine($"  FPS: {animation.Fps}");
+    Console.WriteLine($"  Frame count: {animation.FrameCount}");
+}
+
+// Get faceposer folders for organizing animations
+var folders = model.GetFaceposerFolders();
+foreach (var (animName, folderName) in folders)
+{
+    Console.WriteLine($"Animation '{animName}' in folder '{folderName}'");
+}
+```
+
+## Example: Material and mesh groups
+
+```csharp
+var model = (Model)resource.DataBlock;
+
+// Get mesh groups
+var meshGroups = model.GetMeshGroups().ToList();
+Console.WriteLine($"Mesh Groups: {string.Join(", ", meshGroups)}");
+
+// Get default mesh groups
+var defaultGroups = model.GetDefaultMeshGroups().ToList();
+Console.WriteLine($"Default Groups: {string.Join(", ", defaultGroups)}");
+
+// Get material groups
+foreach (var (groupName, materials) in model.GetMaterialGroups())
+{
+    Console.WriteLine($"Material Group: {groupName}");
+    foreach (var material in materials)
+    {
+        Console.WriteLine($"  - {material}");
+    }
+}
+```

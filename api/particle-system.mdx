@@ -1,0 +1,234 @@
+---
+title: ParticleSystem
+description: API reference for the ParticleSystem class that represents particle system resources
+---
+
+## Overview
+
+The `ParticleSystem` class represents a particle system resource. It provides methods for accessing renderers, operators, initializers, emitters, and child particles that define the behavior and appearance of particle effects.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Methods
+
+### GetRenderers
+
+Gets the renderers in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetRenderers()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of renderer objects.
+
+### GetOperators
+
+Gets the operators in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetOperators()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of operator objects.
+
+### GetForceGenerators
+
+Gets the force generators in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetForceGenerators()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of force generator objects.
+
+### GetInitializers
+
+Gets the initializers in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetInitializers()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of initializer objects.
+
+### GetEmitters
+
+Gets the emitters in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetEmitters()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of emitter objects.
+
+### GetPreEmissionOperators
+
+Gets the pre-emission operators in the particle system.
+
+```csharp
+public IEnumerable<KVObject> GetPreEmissionOperators()
+```
+
+**Returns:** `IEnumerable<KVObject>` - Enumerable of pre-emission operator objects.
+
+### GetChildParticleNames
+
+Gets the names of child particles.
+
+```csharp
+public IEnumerable<string> GetChildParticleNames(bool enabledOnly = false)
+```
+
+<ParamField path="enabledOnly" type="bool" default="false">
+  If true, only returns enabled child particles.
+</ParamField>
+
+**Returns:** `IEnumerable<string>` - Enumerable of child particle names.
+
+## Accessing from Resource
+
+ParticleSystem data is accessed from the DATA block of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/particle.vpcf_c");
+
+var particleSystem = (ParticleSystem)resource.DataBlock;
+
+// Get renderers
+var renderers = particleSystem.GetRenderers();
+foreach (var renderer in renderers)
+{
+    var type = renderer.GetProperty<string>("_class");
+    Console.WriteLine($"Renderer: {type}");
+}
+
+// Get operators
+var operators = particleSystem.GetOperators();
+foreach (var op in operators)
+{
+    var type = op.GetProperty<string>("_class");
+    Console.WriteLine($"Operator: {type}");
+}
+```
+
+## Example: Enumerating particle system components
+
+```csharp
+var particleSystem = (ParticleSystem)resource.DataBlock;
+
+// List all renderers
+Console.WriteLine("Renderers:");
+foreach (var renderer in particleSystem.GetRenderers())
+{
+    var className = renderer.GetProperty<string>("_class");
+    Console.WriteLine($"  - {className}");
+}
+
+// List all initializers
+Console.WriteLine("Initializers:");
+foreach (var initializer in particleSystem.GetInitializers())
+{
+    var className = initializer.GetProperty<string>("_class");
+    Console.WriteLine($"  - {className}");
+}
+
+// List all operators
+Console.WriteLine("Operators:");
+foreach (var op in particleSystem.GetOperators())
+{
+    var className = op.GetProperty<string>("_class");
+    Console.WriteLine($"  - {className}");
+}
+
+// List all emitters
+Console.WriteLine("Emitters:");
+foreach (var emitter in particleSystem.GetEmitters())
+{
+    var className = emitter.GetProperty<string>("_class");
+    Console.WriteLine($"  - {className}");
+}
+```
+
+## Example: Working with child particles
+
+```csharp
+var particleSystem = (ParticleSystem)resource.DataBlock;
+
+// Get all child particles
+var allChildren = particleSystem.GetChildParticleNames().ToList();
+Console.WriteLine($"Total child particles: {allChildren.Count}");
+
+foreach (var childName in allChildren)
+{
+    Console.WriteLine($"  - {childName}");
+}
+
+// Get only enabled child particles
+var enabledChildren = particleSystem.GetChildParticleNames(enabledOnly: true).ToList();
+Console.WriteLine($"Enabled child particles: {enabledChildren.Count}");
+
+foreach (var childName in enabledChildren)
+{
+    Console.WriteLine($"  - {childName}");
+}
+```
+
+## Example: Reading particle renderer properties
+
+```csharp
+var particleSystem = (ParticleSystem)resource.DataBlock;
+
+foreach (var renderer in particleSystem.GetRenderers())
+{
+    var className = renderer.GetProperty<string>("_class");
+    Console.WriteLine($"Renderer: {className}");
+    
+    // Example: Reading common renderer properties
+    if (renderer.ContainsKey("m_bDisableOperator"))
+    {
+        var disabled = renderer.GetProperty<bool>("m_bDisableOperator");
+        Console.WriteLine($"  Disabled: {disabled}");
+    }
+    
+    // Sprite renderer specific
+    if (className == "C_OP_RenderSprites" && renderer.ContainsKey("m_hTexture"))
+    {
+        var texture = renderer.GetProperty<string>("m_hTexture");
+        Console.WriteLine($"  Texture: {texture}");
+    }
+}
+```
+
+## Example: Reading initializer properties
+
+```csharp
+var particleSystem = (ParticleSystem)resource.DataBlock;
+
+foreach (var initializer in particleSystem.GetInitializers())
+{
+    var className = initializer.GetProperty<string>("_class");
+    Console.WriteLine($"Initializer: {className}");
+    
+    // Example: Position initializer
+    if (className == "C_INIT_CreateWithinSphere")
+    {
+        if (initializer.ContainsKey("m_fRadius"))
+        {
+            var radius = initializer.GetFloatProperty("m_fRadius");
+            Console.WriteLine($"  Radius: {radius}");
+        }
+    }
+    
+    // Example: Lifetime initializer
+    if (className == "C_INIT_RandomLifeTime")
+    {
+        if (initializer.ContainsKey("m_fLifetimeMin"))
+        {
+            var lifetimeMin = initializer.GetFloatProperty("m_fLifetimeMin");
+            var lifetimeMax = initializer.GetFloatProperty("m_fLifetimeMax");
+            Console.WriteLine($"  Lifetime: {lifetimeMin} - {lifetimeMax}s");
+        }
+    }
+}
+```

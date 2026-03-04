@@ -1,97 +1,290 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: ValveResourceFormat Documentation
+description: Parse, decompile, and export Valve's Source 2 resource file formats
+mode: custom
 ---
 
-## Setting up
+<div className="relative overflow-hidden bg-[#121a26] dark:bg-[#121a26]">
+  <div className="absolute inset-0 bg-gradient-to-br from-[#324c7c]/20 via-transparent to-[#5a9fff]/10"></div>
+  <div className="relative max-w-7xl mx-auto px-6 sm:px-8 py-16 sm:py-20 lg:py-24">
+    <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+          ValveResourceFormat
+        </h1>
+        <p className="text-lg sm:text-xl text-[#d1d9e6] dark:text-[#d1d9e6] max-w-2xl mb-8">
+          A powerful C# library for parsing, decompiling, and exporting Valve's Source 2 resource file formats. Support for 50+ file types including models, textures, materials, maps, and particles.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 bg-[#6ea8ff] hover:bg-[#5a9fff] text-[#000000] font-semibold rounded-lg transition-colors"
+          >
+            Get Started
+            <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+          <a 
+            href="/api/resource" 
+            className="inline-flex items-center px-6 py-3 bg-[#2a2f3a] hover:bg-[#363b48] border border-white/30 text-[#d1d9e6] font-semibold rounded-lg transition-colors"
+          >
+            API Reference
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#5a9fff]/20 to-[#324c7c]/20 blur-3xl"></div>
+          <img 
+            src="https://media.brand.dev/fafa19aa-0d43-4859-9111-7107ff95353e.jpg" 
+            alt="Source 2 Viewer logo"
+            className="relative rounded-2xl shadow-2xl"
+            noZoom
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Quick start
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Get up and running with ValveResourceFormat in minutes
+  </p>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+  <Steps>
+    <Step title="Install via NuGet">
+      Install the ValveResourceFormat package from NuGet:
+      
+      <CodeGroup>
+      ```bash .NET CLI
+      dotnet add package ValveResourceFormat
+      ```
+      ```bash Package Manager
+      Install-Package ValveResourceFormat
+      ```
+      ```xml PackageReference
+      <PackageReference Include="ValveResourceFormat" Version="*" />
+      ```
+      </CodeGroup>
+    </Step>
 
-## Make it yours
+    <Step title="Load a resource file">
+      Create a `Resource` instance and read a Source 2 file:
 
-Design a docs site that looks great and empowers your users.
+      ```csharp
+      using ValveResourceFormat;
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      var file = "materials/example.vmat_c";
+      using var resource = new Resource();
+      resource.Read(file);
+      ```
 
-## Create beautiful pages
+      The library automatically detects and parses the resource type.
+    </Step>
 
-Everything you need to create world-class documentation.
+    <Step title="Extract asset data">
+      Access the parsed data and export to common formats:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+      ```csharp
+      using ValveResourceFormat.ResourceTypes;
+      using ValveResourceFormat.IO;
 
-## Need inspiration?
+      // For textures
+      if (resource.DataBlock is Texture texture)
+      {
+          using var bitmap = texture.GenerateBitmap();
+          var pngBytes = TextureExtract.ToPngImage(bitmap);
+          File.WriteAllBytes("output.png", pngBytes);
+      }
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+      // Or use the universal extractor
+      using var contentFile = FileExtract.Extract(resource, null);
+      File.WriteAllBytes("output", contentFile.Data.ToArray());
+      ```
+
+      <Note>
+        The `FileExtract.Extract` method works with various resource types and returns the appropriate format (PNG for textures, glTF for models, etc.).
+      </Note>
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Explore by topic
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Jump into detailed guides for working with Source 2 assets
+  </p>
+
+  <CardGroup cols={2}>
+    <Card 
+      title="Resource Types" 
+      icon="file-code" 
+      href="/concepts/resource-types"
+    >
+      Learn about the 50+ Source 2 resource types ValveResourceFormat supports
+    </Card>
+    <Card 
+      title="File Formats" 
+      icon="file-binary" 
+      href="/concepts/file-formats"
+    >
+      Understand Source 2 file format structure and binary magics
+    </Card>
+    <Card 
+      title="Extract Textures" 
+      icon="image" 
+      href="/guides/extracting-textures"
+    >
+      Convert compiled textures to PNG, TGA, and other standard formats
+    </Card>
+    <Card 
+      title="Work with Models" 
+      icon="cube" 
+      href="/guides/working-with-models"
+    >
+      Parse model files and export to glTF for use in other tools
+    </Card>
+    <Card 
+      title="VPK Archives" 
+      icon="box-archive" 
+      href="/guides/vpk-archives"
+    >
+      Browse and extract files from Valve Package archives
+    </Card>
+    <Card 
+      title="Decompile Shaders" 
+      icon="wand-magic-sparkles" 
+      href="/guides/decompiling-shaders"
+    >
+      Extract and analyze compiled Source 2 shader code
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Core features
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Everything you need to work with Source 2 assets
+  </p>
+
+  <div className="grid md:grid-cols-3 gap-6">
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        50+ Resource Types
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Parse models, textures, materials, maps, particles, animations, sounds, and more from all Source 2 games.
+      </p>
+    </div>
+
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        Export to Standard Formats
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Convert Source 2 assets to PNG, glTF, WAV, and other industry-standard formats for use anywhere.
+      </p>
+    </div>
+
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        OpenGL Renderer
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Visualize Source 2 assets with the built-in renderer supporting PBR materials and animations.
+      </p>
+    </div>
+
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        VPK Archive Support
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Browse and extract files from Valve Package archives using the integrated ValvePak library.
+      </p>
+    </div>
+
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        Decompiler & Parser
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Convert binary formats to human-readable text including KeyValues3, shaders, and more.
+      </p>
+    </div>
+
+    <div className="p-6 bg-white dark:bg-[#1e2632] border border-gray-200 dark:border-[#465a82cc] rounded-xl hover:border-[#324c7c] dark:hover:border-[#324c7c] transition-colors">
+      <div className="w-12 h-12 bg-[#324c7c]/10 dark:bg-[#324c7c]/20 rounded-lg flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-[#324c7c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        Cross-Game Compatible
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Works with Dota 2, Half-Life: Alyx, CS2, Artifact, Underlords, and all Source 2 titles.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="p-8 sm:p-12 bg-gradient-to-br from-[#324c7c] to-[#5a9fff] rounded-2xl text-center">
+    <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+      Ready to get started?
+    </h2>
+    <p className="text-lg text-white/90 max-w-2xl mx-auto mb-8">
+      Dive into the documentation and start parsing Source 2 assets in minutes
+    </p>
+    <div className="flex flex-wrap gap-4 justify-center">
+      <a 
+        href="/installation" 
+        className="inline-flex items-center px-6 py-3 bg-white hover:bg-gray-100 text-[#324c7c] font-semibold rounded-lg transition-colors"
+      >
+        Installation Guide
+      </a>
+      <a 
+        href="/concepts/resource-types" 
+        className="inline-flex items-center px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-semibold rounded-lg transition-colors"
+      >
+        Learn Core Concepts
+      </a>
+    </div>
+  </div>
+</div>

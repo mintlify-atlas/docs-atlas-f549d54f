@@ -1,0 +1,550 @@
+---
+title: Material loader
+description: Material and texture loading system for Source 2 rendering
+---
+
+The material loader handles loading, caching, and management of materials and textures from Source 2 resource files for GPU rendering.
+
+## MaterialLoader
+
+Loads and caches materials and textures from Source 2 resources.
+
+### Constructor
+
+```csharp
+public MaterialLoader(RendererContext rendererContext)
+```
+
+<ParamField path="rendererContext" type="RendererContext">
+  Renderer context containing file loader and shader loader
+</ParamField>
+
+### Properties
+
+<ResponseField name="MaterialCount" type="int">
+  Number of materials currently cached
+</ResponseField>
+
+<ResponseField name="MaxTextureMaxAnisotropy" type="float" default="0">
+  Maximum anisotropic filtering level to apply (static property)
+</ResponseField>
+
+### Methods
+
+#### GetMaterial
+
+Loads a material by name with optional shader arguments.
+
+```csharp
+public RenderMaterial GetMaterial(
+    string? name,
+    Dictionary<string, byte>? shaderArguments
+)
+```
+
+<ParamField path="name" type="string?">
+  Material resource path (e.g. "materials/models/mymodel.vmat")
+</ParamField>
+
+<ParamField path="shaderArguments" type="Dictionary<string, byte>?">
+  Optional shader static combo overrides
+</ParamField>
+
+Returns a cached material if available, otherwise loads and caches it. Returns an error material if the name is null or the resource cannot be loaded.
+
+#### LoadMaterial
+
+Loads a material from a resource.
+
+```csharp
+public RenderMaterial LoadMaterial(
+    Resource? resource,
+    Dictionary<string, byte>? shaderArguments = null
+)
+```
+
+<ParamField path="resource" type="Resource?">
+  Material resource to load
+</ParamField>
+
+<ParamField path="shaderArguments" type="Dictionary<string, byte>?">
+  Optional shader static combo overrides
+</ParamField>
+
+Creates a RenderMaterial from the resource, loads its shader, and binds all textures. Uses texture aliases to map material texture names to shader uniform names.
+
+#### GetTexture
+
+Loads a texture by name with optional sRGB conversion.
+
+```csharp
+public RenderTexture GetTexture(
+    string name,
+    bool srgbRead = false,
+    bool anisotropicFiltering = false
+)
+```
+
+<ParamField path="name" type="string">
+  Texture resource path (e.g. "materials/default/default_color.vtex")
+</ParamField>
+
+<ParamField path="srgbRead" type="bool" default="false">
+  Whether to load texture in sRGB color space
+</ParamField>
+
+<ParamField path="anisotropicFiltering" type="bool" default="false">
+  Whether to enable anisotropic filtering
+</ParamField>
+
+Returns a cached texture if available, otherwise loads and caches it. Separate caches are maintained for sRGB and linear textures.
+
+#### LoadTexture
+
+Loads a texture from a resource.
+
+```csharp
+public RenderTexture LoadTexture(
+    Resource textureResource,
+    bool srgbRead = false,
+    bool isViewerRequest = false
+)
+```
+
+<ParamField path="textureResource" type="Resource">
+  Texture resource to load
+</ParamField>
+
+<ParamField path="srgbRead" type="bool" default="false">
+  Whether to use sRGB internal format
+</ParamField>
+
+<ParamField path="isViewerRequest" type="bool" default="false">
+  Whether this is a user request (prevents disposal)
+</ParamField>
+
+Creates an OpenGL texture from the resource, uploading all mip levels. Supports 2D, 3D, cube maps, and texture arrays. Respects `MaxTextureSize` setting for non-viewer requests.
+
+#### GetErrorTexture
+
+Returns the error/missing texture (magenta and green checkerboard).
+
+```csharp
+public RenderTexture GetErrorTexture()
+```
+
+Used as a fallback when textures fail to load.
+
+#### GetDefaultNormal
+
+Returns the default normal map (flat blue).
+
+```csharp
+public RenderTexture GetDefaultNormal()
+```
+
+Used when normal maps are missing (RGB 127, 127, 255).
+
+#### GetDefaultMask
+
+Returns the default mask texture (white).
+
+```csharp
+public RenderTexture GetDefaultMask()
+```
+
+Used when mask textures are missing (RGB 255, 255, 255).
+
+### Texture aliases
+
+The material loader uses a texture alias system to map Source 2 material texture names to shader uniform names:
+
+- `g_tColor` ← `g_tColor2`, `g_tColor1`, `g_tColorA`, `g_tColorB`, `g_tColorC`, `g_tGlassDust`
+- `g_tLayer2Color` ← `g_tColorB`, `g_tColor2`
+- `g_tNormal` ← `g_tNormalA`, `g_tNormalRoughness`, `g_tLayer1NormalRoughness`, `g_tNormalRoughness1`
+- `g_tLayer2NormalRoughness` ← `g_tNormalB`, `g_tNormalRoughness2`
+- `g_tAmbientOcclusion` ← `g_tLayer1AmbientOcclusion`
+
+### Usage example
+
+```csharp
+using ValveResourceFormat.Renderer;
+
+// Create material loader via renderer context
+var rendererContext = new RendererContext(fileLoader, logger);
+var materialLoader = rendererContext.MaterialLoader;
+
+// Load a material
+var material = materialLoader.GetMaterial(
+    "materials/models/props/metal.vmat",
+    shaderArguments: null
+);
+
+// Load a texture directly
+var texture = materialLoader.GetTexture(
+    "materials/dev/reflectivity_30.vtex",
+    srgbRead: false,
+    anisotropicFiltering: true
+);
+
+// Get default textures
+var errorTex = materialLoader.GetErrorTexture();
+var normalTex = materialLoader.GetDefaultNormal();
+var maskTex = materialLoader.GetDefaultMask();
+```
+
+## RenderMaterial
+
+Material with shader, textures, and render state for GPU rendering.
+
+### Constructor
+
+```csharp
+public RenderMaterial(
+    Material material,
+    RendererContext rendererContext,
+    Dictionary<string, byte>? shaderArguments
+)
+```
+
+<ParamField path="material" type="Material">
+  Source 2 material data
+</ParamField>
+
+<ParamField path="rendererContext" type="RendererContext">
+  Renderer context for loading shader
+</ParamField>
+
+<ParamField path="shaderArguments" type="Dictionary<string, byte>?">
+  Optional shader static combo overrides
+</ParamField>
+
+Alternatively, create from a shader directly:
+
+```csharp
+public RenderMaterial(Shader shader)
+```
+
+### Properties
+
+<ResponseField name="Shader" type="Shader">
+  Compiled shader program
+</ResponseField>
+
+<ResponseField name="Material" type="Material">
+  Source material data
+</ResponseField>
+
+<ResponseField name="Textures" type="Dictionary<string, RenderTexture>">
+  Bound textures by uniform name
+</ResponseField>
+
+<ResponseField name="Matrices" type="Dictionary<string, Matrix4x4>">
+  Material transform matrices
+</ResponseField>
+
+<ResponseField name="SortId" type="int">
+  Render sort key for draw call ordering
+</ResponseField>
+
+<ResponseField name="IsTranslucent" type="bool">
+  Whether material requires alpha blending
+</ResponseField>
+
+<ResponseField name="IsAlphaTest" type="bool">
+  Whether material uses alpha testing
+</ResponseField>
+
+<ResponseField name="IsOverlay" type="bool">
+  Whether material is a decal/overlay
+</ResponseField>
+
+<ResponseField name="IsToolsMaterial" type="bool">
+  Whether this is a tools-only material
+</ResponseField>
+
+<ResponseField name="IsCs2Water" type="bool">
+  Whether this is CS2 fancy water
+</ResponseField>
+
+<ResponseField name="VertexAnimation" type="bool">
+  Whether material uses vertex animation
+</ResponseField>
+
+<ResponseField name="DoNotCastShadows" type="bool">
+  Whether to skip shadow casting
+</ResponseField>
+
+### Methods
+
+#### Render
+
+Binds material state and textures for rendering.
+
+```csharp
+public void Render(Shader? shader = default)
+```
+
+<ParamField path="shader" type="Shader?">
+  Optional replacement shader (uses material shader if null)
+</ParamField>
+
+Sets all shader uniforms from material parameters, binds textures, and applies render state (blending, depth bias, backface culling).
+
+#### PostRender
+
+Restores render state after drawing.
+
+```csharp
+public void PostRender()
+```
+
+Resets OpenGL state modified by Render() and unbinds textures.
+
+#### LoadRenderState
+
+Reloads render state from material data.
+
+```csharp
+public void LoadRenderState()
+```
+
+Re-evaluates blend mode, overlay flag, and other render state from material parameters. Useful after modifying material data.
+
+### Usage example
+
+```csharp
+// Render with a material
+material.Render();
+GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0);
+material.PostRender();
+
+// Use replacement shader
+material.Render(customShader);
+GL.DrawArrays(PrimitiveType.Triangles, 0, vertexCount);
+material.PostRender();
+```
+
+## Shader
+
+OpenGL shader program with uniform management and material defaults.
+
+### Constructor
+
+```csharp
+public Shader(string name, RendererContext rendererContext)
+```
+
+<ParamField path="name" type="string">
+  Shader name (e.g. "vr_complex.vfx")
+</ParamField>
+
+<ParamField path="rendererContext" type="RendererContext">
+  Renderer context for material loading
+</ParamField>
+
+### Properties
+
+<ResponseField name="Name" type="string">
+  Shader name
+</ResponseField>
+
+<ResponseField name="Program" type="int">
+  OpenGL program handle
+</ResponseField>
+
+<ResponseField name="IsLoaded" type="bool">
+  Whether shader has been linked and validated
+</ResponseField>
+
+<ResponseField name="IsValid" type="bool">
+  Whether shader compiled and linked successfully
+</ResponseField>
+
+<ResponseField name="Parameters" type="IReadOnlyDictionary<string, byte>">
+  Static combo parameters used to compile shader
+</ResponseField>
+
+<ResponseField name="UniformNames" type="HashSet<string>">
+  Set of all uniform names in shader
+</ResponseField>
+
+<ResponseField name="RenderModes" type="HashSet<string>">
+  Set of active render modes
+</ResponseField>
+
+<ResponseField name="Default" type="RenderMaterial">
+  Default material with shader default values
+</ResponseField>
+
+### Methods
+
+#### Use
+
+Binds the shader program for rendering.
+
+```csharp
+public void Use()
+```
+
+Ensures shader is loaded and calls `glUseProgram`.
+
+#### SetTexture
+
+Binds a texture to a uniform sampler.
+
+```csharp
+public bool SetTexture(int unit, string name, RenderTexture texture)
+```
+
+<ParamField path="unit" type="int">
+  Texture unit to bind to
+</ParamField>
+
+<ParamField path="name" type="string">
+  Uniform sampler name
+</ParamField>
+
+<ParamField path="texture" type="RenderTexture">
+  Texture to bind
+</ParamField>
+
+Returns true if uniform exists and was set.
+
+#### SetUniform1
+
+Sets a float or int uniform value.
+
+```csharp
+public void SetUniform1(string name, float value)
+public void SetUniform1(string name, int value)
+```
+
+#### SetUniform4
+
+Sets a vec4 uniform value.
+
+```csharp
+public void SetUniform4(string name, Vector4 value)
+```
+
+#### SetUniform4x4
+
+Sets a mat4 uniform value.
+
+```csharp
+public void SetUniform4x4(string name, Matrix4x4 value)
+```
+
+## ShaderLoader
+
+Compiles and caches OpenGL shader programs from source files.
+
+### Constructor
+
+```csharp
+public ShaderLoader(RendererContext rendererContext)
+```
+
+<ParamField path="rendererContext" type="RendererContext">
+  Renderer context for logging
+</ParamField>
+
+### Properties
+
+<ResponseField name="ShaderCount" type="int">
+  Number of compiled shaders in cache
+</ResponseField>
+
+### Methods
+
+#### LoadShader
+
+Loads and compiles a shader with static combo parameters.
+
+```csharp
+public Shader LoadShader(
+    string shaderName,
+    IReadOnlyDictionary<string, byte>? arguments = null,
+    bool blocking = true
+)
+```
+
+<ParamField path="shaderName" type="string">
+  Shader name (e.g. "complex.vfx", "vrf.depth_only")
+</ParamField>
+
+<ParamField path="arguments" type="IReadOnlyDictionary<string, byte>?">
+  Static combo parameters (e.g. F_TRANSLUCENT = 1)
+</ParamField>
+
+<ParamField path="blocking" type="bool" default="true">
+  Whether to wait for compilation to complete
+</ParamField>
+
+Returns a cached shader if available, otherwise compiles and caches it. Shader names are mapped to file names (e.g. "vr_complex.vfx" → "complex").
+
+Alternatively, with tuple syntax:
+
+```csharp
+public Shader LoadShader(
+    string shaderName,
+    params (string ComboName, byte ComboValue)[] combos
+)
+```
+
+### Usage example
+
+```csharp
+// Load basic shader
+var shader = shaderLoader.LoadShader("complex.vfx");
+
+// Load with static combos
+var translucentShader = shaderLoader.LoadShader(
+    "complex.vfx",
+    new Dictionary<string, byte>
+    {
+        ["F_TRANSLUCENT"] = 1,
+        ["F_ALPHA_TEST"] = 0
+    }
+);
+
+// Load with tuple syntax
+var animatedShader = shaderLoader.LoadShader(
+    "vrf.depth_only",
+    ("D_ANIMATED", 1),
+    ("D_EIGHT_BONE_BLENDING", 1)
+);
+```
+
+## Reserved texture slots
+
+Global texture slots reserved for renderer-managed textures.
+
+```csharp
+public enum ReservedTextureSlots
+{
+    BRDFLookup = 0,
+    BlueNoise,
+    FogCubeTexture,
+    Lightmap1,
+    Lightmap2,
+    Lightmap3,
+    Lightmap4,
+    Lightmap5,
+    Lightmap6,
+    EnvironmentMap,
+    Probe1,
+    Probe2,
+    Probe3,
+    ShadowDepthBufferDepth,
+    SceneColor,
+    SceneDepth,
+    SceneStencil,
+    DepthPyramid,
+    MorphCompositeTexture,
+    Last = MorphCompositeTexture
+}
+```
+
+These slots are used for global rendering resources like BRDF lookup tables, shadow maps, and scene buffers. Material textures use slots starting from `Last + 1`.

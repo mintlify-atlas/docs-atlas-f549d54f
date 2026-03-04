@@ -1,0 +1,297 @@
+---
+title: BinaryKV3
+description: API reference for the BinaryKV3 class that represents binary KeyValues3 data blocks
+---
+
+## Overview
+
+The `BinaryKV3` class represents a binary KeyValues3 data block. It provides methods for reading and deserializing binary KV3 format data into a structured object model.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Properties
+
+<ResponseField name="Data" type="KVObject">
+  The deserialized KeyValues3 data.
+</ResponseField>
+
+<ResponseField name="Encoding" type="KV3ID">
+  The encoding identifier for this KV3 data.
+</ResponseField>
+
+<ResponseField name="Format" type="KV3ID">
+  The format identifier for this KV3 data.
+</ResponseField>
+
+## Constants
+
+<ResponseField name="MAGIC0" type="int" default="0x03564B56">
+  Magic number for VKV3 format.
+</ResponseField>
+
+<ResponseField name="MAGIC1" type="int" default="0x4B563301">
+  Magic number for KV3 version 1.
+</ResponseField>
+
+<ResponseField name="MAGIC2" type="int" default="0x4B563302">
+  Magic number for KV3 version 2.
+</ResponseField>
+
+<ResponseField name="MAGIC3" type="int" default="0x4B563303">
+  Magic number for KV3 version 3.
+</ResponseField>
+
+<ResponseField name="MAGIC4" type="int" default="0x4B563304">
+  Magic number for KV3 version 4.
+</ResponseField>
+
+<ResponseField name="MAGIC5" type="int" default="0x4B563305">
+  Magic number for KV3 version 5.
+</ResponseField>
+
+## Methods
+
+### IsBinaryKV3
+
+Checks if the given magic number represents a binary KV3 format.
+
+```csharp
+public static bool IsBinaryKV3(uint magic)
+```
+
+<ParamField path="magic" type="uint" required>
+  The magic number to check.
+</ParamField>
+
+**Returns:** `bool` - True if the magic number is a valid binary KV3 format.
+
+### GetKV3File
+
+Gets the KeyValues3 data as a KV3File object.
+
+```csharp
+public KV3File GetKV3File()
+```
+
+**Returns:** `KV3File` - A KV3File object containing the data and format.
+
+### Read
+
+Reads and deserializes the binary KV3 data.
+
+```csharp
+public override void Read(BinaryReader reader)
+```
+
+<ParamField path="reader" type="BinaryReader" required>
+  The binary reader positioned at the start of KV3 data.
+</ParamField>
+
+### ConvertBinaryKV3ToText
+
+Converts binary KV3 data to text format. This method is exposed for unmanaged callers.
+
+```csharp
+public static IntPtr ConvertBinaryKV3ToText(IntPtr dataPtr, int dataLength)
+```
+
+<ParamField path="dataPtr" type="IntPtr" required>
+  Pointer to the binary KV3 data.
+</ParamField>
+
+<ParamField path="dataLength" type="int" required>
+  Length of the binary data.
+</ParamField>
+
+**Returns:** `IntPtr` - Pointer to the text representation of the KV3 data.
+
+## Constructors
+
+### BinaryKV3()
+
+Initializes a new instance with DATA block type.
+
+```csharp
+public BinaryKV3()
+```
+
+### BinaryKV3(BlockType)
+
+Initializes a new instance with the specified block type.
+
+```csharp
+public BinaryKV3(BlockType type)
+```
+
+<ParamField path="type" type="BlockType" required>
+  The block type.
+</ParamField>
+
+### BinaryKV3(KVObject, KV3ID, BlockType)
+
+Initializes a new instance with the specified data and format.
+
+```csharp
+public BinaryKV3(KVObject data, KV3ID format, BlockType blockType = BlockType.Undefined)
+```
+
+<ParamField path="data" type="KVObject" required>
+  The KeyValues3 data.
+</ParamField>
+
+<ParamField path="format" type="KV3ID" required>
+  The format identifier.
+</ParamField>
+
+<ParamField path="blockType" type="BlockType" default="BlockType.Undefined">
+  The block type.
+</ParamField>
+
+## Accessing from Resource
+
+BinaryKV3 can be accessed from various blocks in a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/file_c");
+
+// Access from DATA block
+if (resource.DataBlock is BinaryKV3 data)
+{
+    var rootObject = data.Data;
+    // Access properties
+    var property = rootObject.GetProperty<string>("PropertyName");
+}
+
+// Access from specific block type
+var ctrl = resource.GetBlockByType(BlockType.CTRL) as BinaryKV3;
+if (ctrl != null)
+{
+    var ctrlData = ctrl.Data;
+    // Process control block data
+}
+```
+
+## Example: Reading BinaryKV3 properties
+
+```csharp
+var binaryKV3 = (BinaryKV3)resource.DataBlock;
+var data = binaryKV3.Data;
+
+Console.WriteLine($"Format: {binaryKV3.Format}");
+
+// Read string property
+if (data.ContainsKey("m_name"))
+{
+    var name = data.GetProperty<string>("m_name");
+    Console.WriteLine($"Name: {name}");
+}
+
+// Read integer property
+if (data.ContainsKey("m_nVersion"))
+{
+    var version = data.GetInt32Property("m_nVersion");
+    Console.WriteLine($"Version: {version}");
+}
+
+// Read array
+if (data.ContainsKey("m_Items"))
+{
+    var items = data.GetArray("m_Items");
+    Console.WriteLine($"Items: {items.Length}");
+    
+    foreach (var item in items)
+    {
+        var itemName = item.GetProperty<string>("m_name");
+        Console.WriteLine($"  - {itemName}");
+    }
+}
+```
+
+## Example: Converting to text format
+
+```csharp
+var binaryKV3 = (BinaryKV3)resource.DataBlock;
+
+// Get as KV3File for text output
+var kv3File = binaryKV3.GetKV3File();
+
+// Write to console
+using var writer = new IndentedTextWriter(Console.Out);
+kv3File.WriteText(writer);
+
+// Or convert to string
+var textRepresentation = kv3File.ToString();
+File.WriteAllText("output.kv3", textRepresentation);
+```
+
+## Example: Checking KV3 format
+
+```csharp
+using var stream = File.OpenRead("file.bin");
+using var reader = new BinaryReader(stream);
+
+var magic = reader.ReadUInt32();
+
+if (BinaryKV3.IsBinaryKV3(magic))
+{
+    Console.WriteLine("This is a binary KV3 file");
+    
+    // Reset position and read
+    stream.Position = 0;
+    
+    var binaryKV3 = new BinaryKV3();
+    binaryKV3.Read(reader);
+    
+    Console.WriteLine($"Format: {binaryKV3.Format}");
+    Console.WriteLine($"Root properties: {binaryKV3.Data.Properties.Count()}");
+}
+else
+{
+    Console.WriteLine("Not a binary KV3 file");
+}
+```
+
+## Example: Accessing nested data
+
+```csharp
+var binaryKV3 = (BinaryKV3)resource.DataBlock;
+var data = binaryKV3.Data;
+
+// Access nested objects
+if (data.ContainsKey("m_settings"))
+{
+    var settings = data.GetSubCollection("m_settings");
+    
+    if (settings.ContainsKey("m_quality"))
+    {
+        var quality = settings.GetProperty<string>("m_quality");
+        Console.WriteLine($"Quality: {quality}");
+    }
+    
+    // Access nested array
+    if (settings.ContainsKey("m_options"))
+    {
+        var options = settings.GetArray("m_options");
+        foreach (var option in options)
+        {
+            var key = option.GetProperty<string>("m_key");
+            var value = option.GetProperty<string>("m_value");
+            Console.WriteLine($"  {key} = {value}");
+        }
+    }
+}
+```
+
+## Supported Versions
+
+BinaryKV3 supports versions 1 through 5 of the binary KV3 format. The class automatically detects the version and applies the appropriate deserialization logic.
+
+## Compression Support
+
+BinaryKV3 supports multiple compression methods:
+- **Uncompressed** (method 0)
+- **LZ4** (method 1)
+- **ZSTD** (method 2)
+
+Compression is automatically detected and decompressed during the read operation.

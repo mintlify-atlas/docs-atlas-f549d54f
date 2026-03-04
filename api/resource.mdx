@@ -1,0 +1,287 @@
+---
+title: Resource class
+description: Main entry point for reading and working with Valve Source 2 resource files
+---
+
+The `Resource` class represents a compiled Valve Source 2 resource file. It is the primary entry point for parsing resource files (files ending in `_c` suffix) and provides access to the resource's blocks, metadata, and data.
+
+## Constructor
+
+### Resource()
+
+Initializes a new instance of the Resource class.
+
+```csharp
+var resource = new Resource();
+```
+
+### Resource(ResourceType, ushort)
+
+Initializes a new instance of the Resource class for creating new resources.
+
+<ParamField path="resourceType" type="ResourceType" required>
+  The type of resource to create
+</ParamField>
+
+<ParamField path="version" type="ushort" default="0">
+  The file type version
+</ParamField>
+
+```csharp
+var resource = new Resource(ResourceType.Material, version: 1);
+```
+
+## Properties
+
+<ResponseField name="Reader" type="BinaryReader?">
+  Gets the binary reader. **Use at your own risk!** It is exposed publicly to ease reading from the same file.
+</ResponseField>
+
+<ResponseField name="FileName" type="string?">
+  Gets or sets the file name this resource was parsed from.
+</ResponseField>
+
+<ResponseField name="FileSize" type="uint">
+  Gets the resource size in bytes.
+</ResponseField>
+
+<ResponseField name="HeaderVersion" type="ushort">
+  Gets the version of this resource header, should be 12.
+</ResponseField>
+
+<ResponseField name="Version" type="ushort">
+  Gets the file type version.
+</ResponseField>
+
+<ResponseField name="Blocks" type="List<Block>">
+  Gets the list of blocks this resource contains.
+</ResponseField>
+
+<ResponseField name="ResourceType" type="ResourceType">
+  Gets the type of the resource (e.g., Material, Texture, Model, Sound).
+</ResponseField>
+
+<ResponseField name="EditInfo" type="ResourceEditInfo?">
+  Gets the ResourceEditInfo block containing dependency and compilation metadata.
+</ResponseField>
+
+<ResponseField name="ExternalReferences" type="ResourceExtRefList?">
+  Gets the ResourceExtRefList block containing external resource references.
+</ResponseField>
+
+<ResponseField name="DataBlock" type="Block?">
+  Gets the generic DATA block containing the resource's primary content.
+</ResponseField>
+
+<ResponseField name="FullFileSize" type="uint">
+  Gets the full file size including streaming data. For resources like sounds and textures that have streaming data after the resource file, this property returns the correct total size.
+</ResponseField>
+
+## Methods
+
+### Read(string)
+
+Opens and reads the given filename. The file is held open until the object is disposed.
+
+<ParamField path="filename" type="string" required>
+  The file path to open and read
+</ParamField>
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+```
+
+### Read(Stream, bool, bool)
+
+Reads the given stream.
+
+<ParamField path="input" type="Stream" required>
+  The input stream to read from
+</ParamField>
+
+<ParamField path="verifyFileSize" type="bool" default="true">
+  Whether to verify that the stream was correctly consumed
+</ParamField>
+
+<ParamField path="leaveOpen" type="bool" default="false">
+  Whether to leave the stream open after the object is disposed
+</ParamField>
+
+<Note>
+  The input stream must remain open while accessing data from this resource, as some operations may perform reads lazily from the stream at call time.
+</Note>
+
+```csharp
+using var stream = File.OpenRead("model.vmdl_c");
+using var resource = new Resource();
+resource.Read(stream, verifyFileSize: true, leaveOpen: false);
+```
+
+### Serialize(Stream)
+
+Serialize resource to binary format.
+
+<ParamField path="stream" type="Stream" required>
+  Stream to write to. The stream must support seeking.
+</ParamField>
+
+<Warning>
+  NOT PRODUCTION READY! Not all blocks support serialization and will throw. The total file size must not exceed `uint.MaxValue`.
+</Warning>
+
+```csharp
+using var outputStream = File.Create("output.vmat_c");
+resource.Serialize(outputStream);
+```
+
+### GetBlockByIndex(int)
+
+Gets a block by its index in the blocks list.
+
+<ParamField path="index" type="int" required>
+  The zero-based index of the block
+</ParamField>
+
+<ResponseField name="return" type="Block">
+  The block at the specified index
+</ResponseField>
+
+Throws `ArgumentOutOfRangeException` when the index is out of range.
+
+```csharp
+var firstBlock = resource.GetBlockByIndex(0);
+```
+
+### GetBlockByType(BlockType)
+
+Gets the first block of the specified type.
+
+<ParamField path="type" type="BlockType" required>
+  The type of block to retrieve
+</ParamField>
+
+<ResponseField name="return" type="Block?">
+  The first block of the specified type, or null if not found
+</ResponseField>
+
+```csharp
+var dataBlock = resource.GetBlockByType(BlockType.DATA);
+var editInfo = resource.GetBlockByType(BlockType.REDI);
+```
+
+### ContainsBlockType(BlockType)
+
+Determines whether the resource contains a block of the specified type.
+
+<ParamField path="type" type="BlockType" required>
+  The type of block to check for
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if a block of the specified type exists; otherwise, false
+</ResponseField>
+
+```csharp
+if (resource.ContainsBlockType(BlockType.VBIB))
+{
+    // Resource has vertex/index buffer data
+}
+```
+
+### Dispose()
+
+Releases the binary reader and associated resources.
+
+```csharp
+resource.Dispose();
+```
+
+## Constants
+
+<ResponseField name="KnownHeaderVersion" type="ushort" default="12">
+  The known and expected header version for resource files.
+</ResponseField>
+
+## Usage examples
+
+### Reading a resource file
+
+```csharp
+using ValveResourceFormat;
+
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+Console.WriteLine($"Resource Type: {resource.ResourceType}");
+Console.WriteLine($"File Size: {resource.FileSize}");
+Console.WriteLine($"Version: {resource.Version}");
+Console.WriteLine($"Blocks: {resource.Blocks.Count}");
+```
+
+### Accessing resource data
+
+```csharp
+using var resource = new Resource();
+resource.Read("models/props/example.vmdl_c");
+
+// Access the DATA block
+var dataBlock = resource.DataBlock;
+if (dataBlock != null)
+{
+    Console.WriteLine(dataBlock.ToString());
+}
+
+// Check for external references
+if (resource.ExternalReferences != null)
+{
+    Console.WriteLine("External resources:");
+    // Process external references
+}
+```
+
+### Working with different resource types
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+switch (resource.ResourceType)
+{
+    case ResourceType.Material:
+        var material = (Material)resource.DataBlock;
+        // Work with material data
+        break;
+        
+    case ResourceType.Model:
+        var model = (Model)resource.DataBlock;
+        // Work with model data
+        break;
+        
+    case ResourceType.Texture:
+        var texture = (Texture)resource.DataBlock;
+        // Work with texture data
+        break;
+}
+```
+
+### Iterating through blocks
+
+```csharp
+using var resource = new Resource();
+resource.Read("example.vmdl_c");
+
+foreach (var block in resource.Blocks)
+{
+    Console.WriteLine($"Block Type: {block.Type}");
+    Console.WriteLine($"Block Size: {block.Size}");
+    Console.WriteLine($"Block Offset: {block.Offset}");
+}
+```
+
+## Related types
+
+- [Block](/api/block) - Base class for resource blocks
+- [FileExtract](/api/file-extract) - Utility for extracting resources to files
+- `ResourceType` - Enum of all supported resource types
+- `BlockType` - Enum of all supported block types

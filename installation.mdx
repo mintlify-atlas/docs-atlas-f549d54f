@@ -1,0 +1,223 @@
+---
+title: Installation
+description: How to install ValveResourceFormat via NuGet and set up your project
+---
+
+ValveResourceFormat is distributed as NuGet packages. The library supports .NET 10.0 and is compatible with Native AOT compilation.
+
+## System requirements
+
+- **.NET 10.0** or later
+- **Platform**: Windows, Linux, or macOS
+- **IDE**: Visual Studio 2022, Visual Studio Code, Rider, or any .NET-compatible editor
+
+## Package options
+
+ValveResourceFormat provides two NuGet packages:
+
+<CardGroup cols={2}>
+  <Card title="ValveResourceFormat" icon="box">
+    Core parsing library for reading and extracting Source 2 resource files
+  </Card>
+  
+  <Card title="ValveResourceFormat.Renderer" icon="cube">
+    Optional OpenGL-based rendering engine for visualizing assets (models, maps, materials, particles)
+  </Card>
+</CardGroup>
+
+<Note>
+Most projects only need the core `ValveResourceFormat` package. Install the `Renderer` package only if you need to render 3D assets.
+</Note>
+
+## Installing the core library
+
+<Tabs>
+  <Tab title=".NET CLI">
+    ```bash
+    dotnet add package ValveResourceFormat
+    ```
+  </Tab>
+  
+  <Tab title="Package Manager">
+    ```powershell
+    Install-Package ValveResourceFormat
+    ```
+  </Tab>
+  
+  <Tab title="PackageReference">
+    Add this to your `.csproj` file:
+    
+    ```xml
+    <ItemGroup>
+      <PackageReference Include="ValveResourceFormat" Version="*" />
+    </ItemGroup>
+    ```
+  </Tab>
+</Tabs>
+
+## Installing the renderer (optional)
+
+If you need to render 3D models, maps, or other visual assets:
+
+<Tabs>
+  <Tab title=".NET CLI">
+    ```bash
+    dotnet add package ValveResourceFormat.Renderer
+    ```
+  </Tab>
+  
+  <Tab title="Package Manager">
+    ```powershell
+    Install-Package ValveResourceFormat.Renderer
+    ```
+  </Tab>
+  
+  <Tab title="PackageReference">
+    Add this to your `.csproj` file:
+    
+    ```xml
+    <ItemGroup>
+      <PackageReference Include="ValveResourceFormat" Version="*" />
+      <PackageReference Include="ValveResourceFormat.Renderer" Version="*" />
+    </ItemGroup>
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+The Renderer package automatically includes the core ValveResourceFormat package as a dependency.
+</Note>
+
+## Key dependencies
+
+The core ValveResourceFormat library includes several important dependencies:
+
+- **SkiaSharp** - For texture decoding and image processing
+- **ValveKeyValue** - For parsing KeyValues formats
+- **ValvePak** - For reading VPK archive files
+- **ZstdSharp.Port** - For Zstandard compression support
+- **KeyValues2** - For KeyValues3 format support
+
+These dependencies are automatically installed when you add the NuGet package.
+
+## Project configuration
+
+After installation, create a simple console application:
+
+<Steps>
+  <Step title="Create a new project">
+    ```bash
+    dotnet new console -n MyVrfProject
+    cd MyVrfProject
+    ```
+  </Step>
+  
+  <Step title="Add the package">
+    ```bash
+    dotnet add package ValveResourceFormat
+    ```
+  </Step>
+  
+  <Step title="Enable nullable reference types (recommended)">
+    Add this to your `.csproj` file:
+    
+    ```xml
+    <PropertyGroup>
+      <Nullable>enable</Nullable>
+    </PropertyGroup>
+    ```
+  </Step>
+  
+  <Step title="Verify installation">
+    Replace the contents of `Program.cs` with:
+    
+    ```csharp
+    using ValveResourceFormat;
+    
+    Console.WriteLine($"ValveResourceFormat loaded successfully!");
+    Console.WriteLine($"Known header version: {Resource.KnownHeaderVersion}");
+    ```
+  </Step>
+  
+  <Step title="Run the project">
+    ```bash
+    dotnet run
+    ```
+    
+    You should see:
+    ```
+    ValveResourceFormat loaded successfully!
+    Known header version: 12
+    ```
+  </Step>
+</Steps>
+
+## Verifying your installation
+
+To verify that ValveResourceFormat is correctly installed, you can check the available namespaces:
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.IO;
+
+// Create a new Resource instance
+using var resource = new Resource();
+
+Console.WriteLine("ValveResourceFormat is ready to use!");
+Console.WriteLine($"Resource type: {resource.ResourceType}");
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Package restore fails">
+    Ensure you have a stable internet connection and that NuGet.org is accessible. Try:
+    
+    ```bash
+    dotnet nuget locals all --clear
+    dotnet restore
+    ```
+  </Accordion>
+  
+  <Accordion title="Version compatibility issues">
+    ValveResourceFormat requires .NET 10.0. Check your SDK version:
+    
+    ```bash
+    dotnet --version
+    ```
+    
+    If you're using an older version, download the latest .NET SDK from [dotnet.microsoft.com](https://dotnet.microsoft.com/download).
+  </Accordion>
+  
+  <Accordion title="Missing assembly references">
+    If you encounter missing assembly errors, ensure all packages are restored:
+    
+    ```bash
+    dotnet restore
+    dotnet build
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Native AOT support
+
+ValveResourceFormat is compatible with Native AOT compilation for better performance and smaller deployment sizes:
+
+```xml
+<PropertyGroup>
+  <PublishAot>true</PublishAot>
+</PropertyGroup>
+```
+
+<Note>
+Both the core library and renderer are marked as AOT-compatible.
+</Note>
+
+## Next steps
+
+Now that you have ValveResourceFormat installed, learn how to parse your first resource file:
+
+<Card title="Quick start tutorial" icon="rocket" href="/quickstart">
+  Follow the quick start guide to parse a resource file and extract data
+</Card>

@@ -1,0 +1,318 @@
+---
+title: Working with models and meshes
+description: Parse model files, access mesh data, skeleton information, and export to glTF format
+---
+
+This guide covers loading and working with Source 2 model (`.vmdl_c`) and mesh (`.vmesh_c`) files.
+
+## Loading a model
+
+<Steps>
+
+### Load the model resource
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+
+using var resource = new Resource();
+resource.Read("models/props/example.vmdl_c");
+
+var model = (Model)resource.DataBlock!;
+```
+
+### Access model properties
+
+```csharp
+// Get model name
+var modelName = model.Name;
+Console.WriteLine($"Model: {modelName}");
+
+// Access skeleton
+var skeleton = model.Skeleton;
+Console.WriteLine($"Bones: {skeleton.Bones.Length}");
+
+foreach (var bone in skeleton.Bones)
+{
+    Console.WriteLine($"  {bone.Name} (parent: {bone.ParentIndex})");
+}
+```
+
+### Get embedded meshes
+
+```csharp
+var embeddedMeshes = model.GetEmbeddedMeshesAndLoD();
+
+foreach (var (mesh, meshIndex, meshName, lod) in embeddedMeshes)
+{
+    Console.WriteLine($"Mesh {meshIndex} ({meshName}) LOD {lod}");
+    Console.WriteLine($"  VBIB present: {mesh.VBIB != null}");
+}
+```
+
+</Steps>
+
+## Working with mesh data
+
+### Load a mesh resource
+
+```csharp
+using var resource = new Resource();
+resource.Read("models/meshes/example.vmesh_c");
+
+var mesh = (Mesh)resource.DataBlock!;
+
+// Get bounds
+mesh.GetBounds();
+Console.WriteLine($"Bounds: {mesh.MinBounds} to {mesh.MaxBounds}");
+```
+
+### Access vertex and index buffers
+
+```csharp
+using ValveResourceFormat.Blocks;
+
+var vbib = mesh.VBIB;
+
+Console.WriteLine($"Vertex buffers: {vbib.VertexBuffers.Count}");
+Console.WriteLine($"Index buffers: {vbib.IndexBuffers.Count}");
+
+// Access vertex buffer data
+foreach (var vertexBuffer in vbib.VertexBuffers)
+{
+    Console.WriteLine($"Vertex count: {vertexBuffer.Count}");
+    Console.WriteLine($"Vertex size: {vertexBuffer.Size} bytes");
+    
+    foreach (var attribute in vertexBuffer.Attributes)
+    {
+        Console.WriteLine($"  Attribute: {attribute.Name} ({attribute.Type})");
+    }
+}
+```
+
+### Read vertex data
+
+```csharp
+var data = mesh.Data; // KVObject containing mesh data
+var sceneObjects = data.GetArray("m_sceneObjects");
+
+foreach (var sceneObject in sceneObjects)
+{
+    var drawCalls = sceneObject.GetArray("m_drawCalls");
+    
+    foreach (var drawCall in drawCalls)
+    {
+        var vertexBuffers = drawCall.GetArray("m_vertexBuffers");
+        var indexBuffer = drawCall.GetSubCollection("m_indexBuffer");
+        
+        var primitiveType = drawCall.GetEnumValue<RenderPrimitiveType>("m_nPrimitiveType");
+        Console.WriteLine($"Primitive type: {primitiveType}");
+    }
+}
+```
+
+## Accessing skeleton and bones
+
+```csharp
+var skeleton = model.Skeleton;
+
+// Iterate through bones
+for (int i = 0; i < skeleton.Bones.Length; i++)
+{
+    var bone = skeleton.Bones[i];
+    
+    Console.WriteLine($"Bone {i}: {bone.Name}");
+    Console.WriteLine($"  Parent: {bone.ParentIndex}");
+    Console.WriteLine($"  Position: {bone.Position}");
+    Console.WriteLine($"  Rotation: {bone.Angle}");
+    Console.WriteLine($"  Flags: {bone.Flags}");
+}
+
+// Get root bones (bones without parent)
+var rootBones = skeleton.Roots;
+Console.WriteLine($"Root bones: {string.Join(", ", rootBones.Select(b => b.Name))}");
+```
+
+## Working with animations
+
+```csharp
+// Get animations from model
+var animations = model.GetEmbeddedAnimations();
+
+foreach (var animation in animations)
+{
+    Console.WriteLine($"Animation: {animation.Name}");
+    Console.WriteLine($"  Duration: {animation.Duration} seconds");
+    Console.WriteLine($"  Frame count: {animation.FrameCount}");
+    Console.WriteLine($"  FPS: {animation.Fps}");
+    
+    // Get frame data
+    foreach (var frame in animation.Frames)
+    {
+        Console.WriteLine($"  Frame {frame.FrameIndex}");
+        
+        // Access bone transforms for this frame
+        foreach (var bone in frame.Bones)
+        {
+            // bone.Position, bone.Angle available
+        }
+    }
+}
+```
+
+## Accessing attachments
+
+```csharp
+foreach (var (name, attachment) in model.Attachments)
+{
+    Console.WriteLine($"Attachment: {name}");
+    Console.WriteLine($"  Parent bone: {attachment.ParentBone}");
+    Console.WriteLine($"  Offset: {attachment.Offset}");
+    Console.WriteLine($"  Angles: {attachment.Angles}");
+}
+```
+
+## Working with hitboxes
+
+```csharp
+foreach (var (setName, hitboxes) in model.HitboxSets)
+{
+    Console.WriteLine($"Hitbox set: {setName}");
+    
+    foreach (var hitbox in hitboxes)
+    {
+        Console.WriteLine($"  Hitbox: {hitbox.Name}");
+        Console.WriteLine($"    Bone: {hitbox.BoneName}");
+        Console.WriteLine($"    Min: {hitbox.MinBounds}");
+        Console.WriteLine($"    Max: {hitbox.MaxBounds}");
+        Console.WriteLine($"    Shape: {hitbox.ShapeName}");
+    }
+}
+```
+
+## Exporting to glTF
+
+The library includes a glTF exporter:
+
+```csharp
+using ValveResourceFormat.IO;
+
+// Create file loader for resolving dependencies
+using var package = new SteamDatabase.ValvePak.Package();
+package.Read("game/pak01_dir.vpk");
+
+var fileLoader = new GameFileLoader(package, null);
+
+// Export model to glTF
+var gltfExporter = new GltfModelExporter(
+    modelResource: resource,
+    fileLoader: fileLoader
+);
+
+// Export with options
+gltfExporter.ExportMeshes = true;
+gltfExporter.ExportAnimations = true;
+gltfExporter.ExportMaterials = true;
+
+var gltfModel = gltfExporter.ToGltfModel();
+
+// Save to file
+using var fileStream = File.Create("output.gltf");
+gltfModel.SaveGLTF(fileStream);
+```
+
+## Getting material references
+
+```csharp
+var materialNames = model.GetReferencedMeshNames();
+
+foreach (var materialName in materialNames)
+{
+    Console.WriteLine($"Material: {materialName}");
+}
+
+// Get material paths from embedded meshes
+var embeddedMeshes = model.GetEmbeddedMeshesAndLoD();
+
+foreach (var (mesh, _, _, _) in embeddedMeshes)
+{
+    var meshData = mesh.Data;
+    var materialGroups = meshData.GetArray("m_materialGroups");
+    
+    foreach (var materialGroup in materialGroups)
+    {
+        var materials = materialGroup.GetArray("m_materials");
+        foreach (var material in materials)
+        {
+            Console.WriteLine($"  Material: {material}");
+        }
+    }
+}
+```
+
+## Remapping bone indices
+
+When working with mesh vertex data, bone indices need to be remapped:
+
+```csharp
+// Get remap table for a specific mesh
+var remapTable = model.GetRemapTable(meshIndex: 0);
+
+if (remapTable != null)
+{
+    // Remap bone index from mesh to skeleton
+    int meshBoneIndex = 5;
+    int skeletonBoneIndex = remapTable[meshBoneIndex];
+    
+    var bone = skeleton.Bones[skeletonBoneIndex];
+    Console.WriteLine($"Mesh bone {meshBoneIndex} maps to {bone.Name}");
+}
+```
+
+## Working with flex controllers (morphs)
+
+```csharp
+var flexControllers = model.FlexControllers;
+
+foreach (var controller in flexControllers)
+{
+    Console.WriteLine($"Flex: {controller.Name}");
+    Console.WriteLine($"  Type: {controller.Type}");
+    Console.WriteLine($"  Range: {controller.Min} to {controller.Max}");
+}
+
+// Access morph data
+using ValveResourceFormat.Blocks;
+
+if (resource.GetBlockByType(BlockType.MRPH) is Morph morph)
+{
+    var morphData = morph.Data;
+    var morphDatas = morphData.GetArray("m_morphDatas");
+    
+    foreach (var morphBundle in morphDatas)
+    {
+        Console.WriteLine("Morph bundle:");
+        // Access morph vertex data
+    }
+}
+```
+
+## Model compilation info
+
+```csharp
+// Access KeyValues from model info
+var keyValues = model.KeyValues;
+
+// This contains the original .vmdl source data
+if (keyValues.ContainsKey("RenderMeshFile"))
+{
+    var meshFile = keyValues.GetProperty<string>("RenderMeshFile");
+    Console.WriteLine($"Mesh file: {meshFile}");
+}
+```
+
+## Next steps
+
+- [Parse material files](/guides/parsing-materials)
+- [Extract textures to PNG/TGA](/guides/extracting-textures)
+- [Browse VPK archives](/guides/vpk-archives)

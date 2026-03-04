@@ -1,0 +1,343 @@
+---
+title: Decompiling Source 2 shaders
+description: Extract and decompile VCS shader files to view shader code and inspect compiled shader programs
+---
+
+This guide covers working with compiled Source 2 shader files (`.vcs`) and extracting shader information.
+
+## Understanding Source 2 shaders
+
+Source 2 shaders are compiled to `.vcs` files which contain:
+
+- Multiple shader stages (vertex, pixel, geometry, etc.)
+- Static combo variations
+- Shader bytecode (DXBC, DXIL, SPIR-V, etc.)
+- Shader metadata and features
+
+## Loading shader files
+
+<Steps>
+
+### Read a shader file
+
+```csharp
+using ValveResourceFormat.CompiledShader;
+
+var shader = new VfxProgramData();
+
+using var stream = File.OpenRead("shaders/complex_ps.vcs");
+shader.Read("complex_ps.vcs", stream);
+```
+
+### Access shader properties
+
+```csharp
+Console.WriteLine($"Shader type: {shader.VcsProgramType}");
+Console.WriteLine($"Platform: {shader.VcsPlatformType}");
+Console.WriteLine($"Shader model: {shader.VcsShaderModelType}");
+Console.WriteLine($"File version: {shader.Version}");
+```
+
+### Get shader features
+
+```csharp
+var features = shader.Features;
+
+foreach (var (featureName, featureValue) in features)
+{
+    Console.WriteLine($"Feature: {featureName} = {featureValue}");
+}
+```
+
+</Steps>
+
+## Working with shader collections
+
+Shaders typically come in related groups (vertex + pixel, etc.):
+
+```csharp
+using SteamDatabase.ValvePak;
+
+using var package = new Package();
+package.Read("shaders/shadercache.vpk");
+
+// Load all related shaders for a shader name
+var shaderCollection = ShaderCollection.GetShaderCollection(
+    targetFilename: "shaders/complex_dota_pcgl_30_ps.vcs",
+    vrfPackage: package
+);
+
+// Access individual shader stages
+var vertexShader = shaderCollection.Vertex;
+var pixelShader = shaderCollection.Pixel;
+var geometryShader = shaderCollection.Geometry;
+var computeShader = shaderCollection.Compute;
+
+if (vertexShader != null)
+{
+    Console.WriteLine($"Vertex shader: {vertexShader.VcsProgramType}");
+}
+
+if (pixelShader != null)
+{
+    Console.WriteLine($"Pixel shader: {pixelShader.VcsProgramType}");
+}
+```
+
+## Extracting shader bytecode
+
+### Get compiled shader data
+
+```csharp
+var shader = new VfxProgramData();
+using var stream = File.OpenRead("complex_ps.vcs");
+shader.Read("complex_ps.vcs", stream);
+
+// Get the file data block
+var fileData = shader.FileBlocks
+    .OfType<VfxProgramData.VfxFileBlock>()
+    .FirstOrDefault();
+
+if (fileData != null)
+{
+    var shaderBytecode = fileData.Data;
+    Console.WriteLine($"Bytecode size: {shaderBytecode.Length} bytes");
+    
+    // Write bytecode to file
+    File.WriteAllBytes("shader.bin", shaderBytecode);
+}
+```
+
+## Reading shader parameters
+
+### Get buffer parameters
+
+```csharp
+var bufferParams = shader.ParamBlocks
+    .Where(b => b.ParamBlockType == VfxParamBlockType.Buffer);
+
+foreach (var bufferBlock in bufferParams)
+{
+    foreach (var param in bufferBlock.Params)
+    {
+        Console.WriteLine($"Buffer param: {param.Name}");
+        Console.WriteLine($"  Type: {param.DataType}");
+        Console.WriteLine($"  Register: {param.RegisterIndex}");
+    }
+}
+```
+
+### Get texture parameters
+
+```csharp
+var textureParams = shader.ParamBlocks
+    .Where(b => b.ParamBlockType == VfxParamBlockType.Texture);
+
+foreach (var textureBlock in textureParams)
+{
+    foreach (var param in textureBlock.Params)
+    {
+        Console.WriteLine($"Texture: {param.Name}");
+        Console.WriteLine($"  Type: {param.DataType}");
+        Console.WriteLine($"  Register: t{param.RegisterIndex}");
+    }
+}
+```
+
+### Get sampler parameters
+
+```csharp
+var samplerParams = shader.ParamBlocks
+    .Where(b => b.ParamBlockType == VfxParamBlockType.Sampler);
+
+foreach (var samplerBlock in samplerParams)
+{
+    foreach (var param in samplerBlock.Params)
+    {
+        Console.WriteLine($"Sampler: {param.Name}");
+        Console.WriteLine($"  Register: s{param.RegisterIndex}");
+    }
+}
+```
+
+## Working with static combos
+
+Shaders can have static combo variations:
+
+```csharp
+var staticCombos = shader.StaticCombos;
+
+Console.WriteLine($"Static combo count: {staticCombos.Count}");
+
+foreach (var combo in staticCombos)
+{
+    Console.WriteLine($"Combo: {combo.Key}");
+    Console.WriteLine($"  Values: {string.Join(", ", combo.Value)}");
+}
+```
+
+## Shader reflection
+
+For SPIR-V shaders, you can use reflection:
+
+```csharp
+if (shader.VcsPlatformType == VcsPlatformType.VULKAN)
+{
+    var reflection = shader.GetSpirvReflection();
+    
+    if (reflection != null)
+    {
+        Console.WriteLine($"Entry point: {reflection.EntryPoint}");
+        
+        // Get input variables
+        foreach (var input in reflection.InputVariables)
+        {
+            Console.WriteLine($"Input: {input.Name} at location {input.Location}");
+        }
+        
+        // Get uniform buffers
+        foreach (var buffer in reflection.UniformBuffers)
+        {
+            Console.WriteLine($"Uniform buffer: {buffer.Name}");
+        }
+    }
+}
+```
+
+## Extracting shader info
+
+### Print shader summary
+
+```csharp
+using ValveResourceFormat.CompiledShader;
+
+// The library has a built-in method for printing shader info
+var summary = shader.ToString();
+Console.WriteLine(summary);
+```
+
+### Get zframe info
+
+For shaders with zframe data:
+
+```csharp
+var zframeBlocks = shader.DataBlocks
+    .Where(b => b.BlockType == VfxBlockType.ZFRAME);
+
+foreach (var zframeBlock in zframeBlocks)
+{
+    // Print zframe summary
+    var zframeSummary = PrintZFrameSummary.Print(zframeBlock.Data);
+    Console.WriteLine(zframeSummary);
+}
+```
+
+## Shader export workflows
+
+### Export all shader variants
+
+```csharp
+var shaderCollection = ShaderCollection.GetShaderCollection(
+    "shaders/complex_dota_pcgl_30_ps.vcs",
+    package
+);
+
+foreach (var shader in shaderCollection)
+{
+    var outputFile = $"{shader.Name}_{shader.VcsProgramType}.txt";
+    var info = shader.ToString();
+    File.WriteAllText(outputFile, info);
+    
+    Console.WriteLine($"Exported: {outputFile}");
+}
+```
+
+### Extract SPIR-V bytecode
+
+```csharp
+if (shader.VcsPlatformType == VcsPlatformType.VULKAN)
+{
+    var fileBlock = shader.FileBlocks
+        .OfType<VfxProgramData.VfxFileBlock>()
+        .FirstOrDefault();
+    
+    if (fileBlock != null)
+    {
+        File.WriteAllBytes("shader.spv", fileBlock.Data);
+        Console.WriteLine("Exported SPIR-V shader");
+    }
+}
+```
+
+## Shader attributes
+
+Get vertex shader input attributes:
+
+```csharp
+if (shader.VcsProgramType == VcsProgramType.VertexShader)
+{
+    var attributes = shader.Attributes;
+    
+    foreach (var attr in attributes)
+    {
+        Console.WriteLine($"Attribute: {attr.Name}");
+        Console.WriteLine($"  Semantic: {attr.SemanticName}{attr.SemanticIndex}");
+        Console.WriteLine($"  Format: {attr.Format}");
+    }
+}
+```
+
+## Loading shaders with GameFileLoader
+
+The `GameFileLoader` can load shaders from VPK:
+
+```csharp
+using ValveResourceFormat.IO;
+
+var fileLoader = new GameFileLoader(package, null);
+
+var shaderCollection = fileLoader.LoadShader("complex.vfx");
+
+if (shaderCollection != null)
+{
+    Console.WriteLine($"Loaded shader collection with {shaderCollection.Count()} shaders");
+    
+    foreach (var shader in shaderCollection)
+    {
+        Console.WriteLine($"  {shader.VcsProgramType}");
+    }
+}
+```
+
+## Common shader platforms
+
+Source 2 compiles shaders for multiple platforms:
+
+- `PC_30` - DirectX 11
+- `PC_40` - DirectX 12  
+- `PC_50` - DirectX 12 (newer)
+- `PCGL` - OpenGL
+- `VULKAN` - Vulkan (SPIR-V)
+- `PS4` - PlayStation 4
+- `PS5` - PlayStation 5
+
+```csharp
+switch (shader.VcsPlatformType)
+{
+    case VcsPlatformType.PC_30:
+        Console.WriteLine("DirectX 11 shader");
+        break;
+    case VcsPlatformType.VULKAN:
+        Console.WriteLine("Vulkan/SPIR-V shader");
+        break;
+    case VcsPlatformType.PCGL:
+        Console.WriteLine("OpenGL shader");
+        break;
+}
+```
+
+## Next steps
+
+- [Parse material files](/guides/parsing-materials)
+- [Browse VPK archives](/guides/vpk-archives)
+- [Read resource files](/guides/reading-resources)

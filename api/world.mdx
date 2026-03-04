@@ -1,0 +1,184 @@
+---
+title: World
+description: API reference for the World class that represents world resources
+---
+
+## Overview
+
+The `World` class represents a world resource, which is the root container for maps in Source 2. It provides access to entity lumps, world nodes, and lighting information.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Methods
+
+### GetEntityLumpNames
+
+Gets the entity lump names.
+
+```csharp
+public IReadOnlyCollection<string> GetEntityLumpNames()
+```
+
+**Returns:** `IReadOnlyCollection<string>` - Collection of entity lump names.
+
+### GetWorldLightingInfo
+
+Gets the world lighting information.
+
+```csharp
+public KVObject GetWorldLightingInfo()
+```
+
+**Returns:** `KVObject` - The world lighting information object.
+
+### GetWorldNodeNames
+
+Gets the world node names.
+
+```csharp
+public IReadOnlyCollection<string> GetWorldNodeNames()
+```
+
+**Returns:** `IReadOnlyCollection<string>` - Collection of world node names.
+
+## Accessing from Resource
+
+World data is accessed from the DATA block of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/map.vwrld_c");
+
+var world = (World)resource.DataBlock;
+
+// Get entity lumps
+var entityLumps = world.GetEntityLumpNames();
+foreach (var lumpName in entityLumps)
+{
+    Console.WriteLine($"Entity Lump: {lumpName}");
+}
+
+// Get world nodes
+var worldNodes = world.GetWorldNodeNames();
+foreach (var nodeName in worldNodes)
+{
+    Console.WriteLine($"World Node: {nodeName}");
+}
+```
+
+## Example: Loading world with entity lumps
+
+```csharp
+var world = (World)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+// Get entity lump names
+var entityLumpNames = world.GetEntityLumpNames();
+Console.WriteLine($"Entity Lumps: {entityLumpNames.Count}");
+
+foreach (var lumpName in entityLumpNames)
+{
+    Console.WriteLine($"Loading entity lump: {lumpName}");
+    
+    using var lumpResource = fileLoader.LoadFileCompiled(lumpName);
+    if (lumpResource?.DataBlock is EntityLump entityLump)
+    {
+        // Process entity lump data
+        var entities = entityLump.GetEntities();
+        Console.WriteLine($"  Contains {entities.Count()} entities");
+    }
+}
+```
+
+## Example: Loading world nodes
+
+```csharp
+var world = (World)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+// Get world node names
+var worldNodeNames = world.GetWorldNodeNames();
+Console.WriteLine($"World Nodes: {worldNodeNames.Count}");
+
+foreach (var nodeName in worldNodeNames)
+{
+    Console.WriteLine($"Loading world node: {nodeName}");
+    
+    using var nodeResource = fileLoader.LoadFileCompiled(nodeName);
+    if (nodeResource?.DataBlock is WorldNode worldNode)
+    {
+        // Process world node data
+        var sceneObjects = worldNode.SceneObjects;
+        Console.WriteLine($"  Contains {sceneObjects.Count} scene objects");
+    }
+}
+```
+
+## Example: Reading world lighting information
+
+```csharp
+var world = (World)resource.DataBlock;
+
+// Get lighting info
+var lightingInfo = world.GetWorldLightingInfo();
+
+if (lightingInfo != null)
+{
+    Console.WriteLine("World Lighting Information:");
+    
+    // Example: Read common lighting properties
+    if (lightingInfo.ContainsKey("m_vLightmapUvScale"))
+    {
+        var uvScale = lightingInfo.GetSubCollection("m_vLightmapUvScale").ToVector2();
+        Console.WriteLine($"  Lightmap UV Scale: {uvScale.X}, {uvScale.Y}");
+    }
+    
+    if (lightingInfo.ContainsKey("m_bBakedShadowsGamma20"))
+    {
+        var gamma20 = lightingInfo.GetProperty<bool>("m_bBakedShadowsGamma20");
+        Console.WriteLine($"  Baked Shadows Gamma 2.0: {gamma20}");
+    }
+    
+    // Print all available lighting properties
+    foreach (var property in lightingInfo)
+    {
+        Console.WriteLine($"  {property.Key}: {property.Value}");
+    }
+}
+```
+
+## Example: Complete world loading
+
+```csharp
+using var resource = new Resource();
+resource.Read("maps/example.vwrld_c");
+
+var world = (World)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+Console.WriteLine("=== World Information ===");
+
+// Load entity lumps
+var entityLumps = world.GetEntityLumpNames();
+Console.WriteLine($"Entity Lumps: {entityLumps.Count}");
+foreach (var lumpName in entityLumps)
+{
+    Console.WriteLine($"  - {lumpName}");
+}
+
+// Load world nodes
+var worldNodes = world.GetWorldNodeNames();
+Console.WriteLine($"World Nodes: {worldNodes.Count}");
+foreach (var nodeName in worldNodes)
+{
+    Console.WriteLine($"  - {nodeName}");
+}
+
+// Get lighting information
+var lightingInfo = world.GetWorldLightingInfo();
+if (lightingInfo != null)
+{
+    Console.WriteLine("Lighting Info:");
+    Console.WriteLine($"  Properties: {lightingInfo.Properties.Count()}");
+}
+```

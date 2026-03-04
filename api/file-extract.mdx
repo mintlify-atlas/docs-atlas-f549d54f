@@ -1,0 +1,414 @@
+---
+title: FileExtract class
+description: Utility for extracting and decompiling compiled resources to their source formats
+---
+
+The `FileExtract` class provides static methods for extracting content files from compiled resources. It handles converting compiled resource formats back to their original or usable formats (e.g., extracting textures to PNG, sounds to WAV/MP3, materials to text).
+
+## Methods
+
+### Extract(Resource, IFileLoader, IProgress\<string\>?)
+
+Extract content file from a compiled resource.
+
+<ParamField path="resource" type="Resource" required>
+  The resource to be extracted or decompiled
+</ParamField>
+
+<ParamField path="fileLoader" type="IFileLoader" required>
+  The file loader for resolving dependencies
+</ParamField>
+
+<ParamField path="progress" type="IProgress<string>?" default="null">
+  Optional progress reporter for tracking extraction status
+</ParamField>
+
+<ResponseField name="return" type="ContentFile">
+  A ContentFile object containing the extracted data and any additional files
+</ResponseField>
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example.vmat_c");
+
+var fileLoader = new GameFileLoader();
+var contentFile = FileExtract.Extract(resource, fileLoader);
+
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+```
+
+### ExtractNonResource(Stream, string)
+
+Extract content file from a non-resource stream (e.g., closed captions, flex scenes).
+
+<ParamField path="stream" type="Stream" required>
+  Stream to be extracted or decompiled
+</ParamField>
+
+<ParamField path="fileName" type="string" required>
+  The file name for context
+</ParamField>
+
+<ResponseField name="return" type="ContentFile?">
+  A ContentFile object if the stream format is recognized, otherwise null
+</ResponseField>
+
+```csharp
+using var stream = File.OpenRead("captions.dat");
+var contentFile = FileExtract.ExtractNonResource(stream, "captions.dat");
+
+if (contentFile != null)
+{
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+```
+
+### TryExtractNonResource(Stream, string, out ContentFile?)
+
+Attempts to extract content from a non-resource stream.
+
+<ParamField path="stream" type="Stream" required>
+  Stream to be extracted
+</ParamField>
+
+<ParamField path="fileName" type="string" required>
+  The file name for context
+</ParamField>
+
+<ParamField path="contentFile" type="ContentFile?" output>
+  The extracted content file if successful
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if extraction was successful, false otherwise
+</ResponseField>
+
+```csharp
+using var stream = File.OpenRead("unknown.dat");
+
+if (FileExtract.TryExtractNonResource(stream, "unknown.dat", out var contentFile))
+{
+    Console.WriteLine($"Successfully extracted: {contentFile.FileName}");
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+else
+{
+    Console.WriteLine("Format not recognized");
+}
+```
+
+### IsChildResource(Resource)
+
+Determines whether the resource is a child resource.
+
+<ParamField path="resource" type="Resource" required>
+  The resource to check
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if the resource is a child resource, false otherwise
+</ResponseField>
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/example_child.vtex_c");
+
+if (FileExtract.IsChildResource(resource))
+{
+    Console.WriteLine("This is a child resource");
+}
+```
+
+### GetExtension(Resource)
+
+Gets the appropriate file extension for the extracted resource.
+
+<ParamField path="resource" type="Resource" required>
+  The resource to get the extension for
+</ParamField>
+
+<ResponseField name="return" type="string">
+  The file extension without the dot (e.g., "png", "wav", "vtex")
+</ResponseField>
+
+```csharp
+using var resource = new Resource();
+resource.Read("sounds/example.vsnd_c");
+
+var extension = FileExtract.GetExtension(resource);
+Console.WriteLine($"Output extension: .{extension}");
+// Output: .wav or .mp3 depending on sound type
+```
+
+## Supported resource types
+
+The FileExtract utility supports extracting the following resource types:
+
+### Textures (vtex)
+
+Extracted to PNG, TGA, or other image formats depending on texture type.
+
+### Materials (vmat)
+
+Extracted to text format with resolved texture dependencies.
+
+### Models (vmdl)
+
+Extracted to glTF format with meshes, materials, and animations.
+
+### Sounds (vsnd)
+
+Extracted to WAV or MP3 audio files depending on the audio codec.
+
+### Particle systems (vpcf)
+
+Extracted to text format.
+
+### Maps and worlds (vmap, vwrld)
+
+Extracted to glTF or text format with entity data.
+
+### Panorama files
+
+- **PanoramaLayout** - Extracted to XML
+- **PanoramaScript** - Extracted to JavaScript
+- **PanoramaTypescript** - Extracted to JavaScript
+- **PanoramaStyle** - Extracted to CSS
+- **PanoramaVectorGraphic** - Extracted to SVG
+
+### Other types
+
+- **EntityLump** - Extracted to entity dump text
+- **PostProcessing** - Extracted to Valve post-processing format
+- **NmSkeleton** - Extracted to text
+- **NmClip** - Extracted to text or animation format
+- **ChoreoSceneFileData** - Extracted to choreo format
+- **SoundEventScript** - Extracted to text
+- **SoundStackScript** - Extracted to text
+
+## ContentFile class
+
+The `ContentFile` class represents a file extracted from a compiled resource.
+
+### Properties
+
+<ResponseField name="Data" type="byte[]?">
+  The main file data. Can be null if the file is not meant to be written out, but can still contain subfiles.
+</ResponseField>
+
+<ResponseField name="FileName" type="string">
+  Suggested output file name based on the resource name. The `_c` suffix is automatically removed.
+</ResponseField>
+
+<ResponseField name="SubFiles" type="List<SubFile>">
+  Additional files that make up this content file. For example, for a material, this would contain the texture files.
+</ResponseField>
+
+<ResponseField name="AdditionalFiles" type="List<ContentFile>">
+  Additional extracted resources. For example, for a material, this would contain the referenced texture resources.
+</ResponseField>
+
+### Methods
+
+<ResponseField name="AddSubFile" type="void">
+  Adds a sub-file to be extracted alongside the main content file.
+</ResponseField>
+
+## SubFile class
+
+Represents a sub-file that is part of a content file extraction.
+
+### Properties
+
+<ResponseField name="FileName" type="string">
+  Gets or sets the file name relative to the content file.
+</ResponseField>
+
+<ResponseField name="Extract" type="Func<byte[]>?">
+  Gets or sets the extraction function that returns the file data.
+</ResponseField>
+
+## Usage examples
+
+### Basic extraction
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.IO;
+
+using var resource = new Resource();
+resource.Read("materials/metal.vmat_c");
+
+var fileLoader = new GameFileLoader();
+var contentFile = FileExtract.Extract(resource, fileLoader);
+
+// Save main file
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+
+// Save sub-files (e.g., textures)
+foreach (var subFile in contentFile.SubFiles)
+{
+    if (subFile.Extract != null)
+    {
+        var data = subFile.Extract();
+        var path = Path.Combine(Path.GetDirectoryName(contentFile.FileName), subFile.FileName);
+        File.WriteAllBytes(path, data);
+    }
+}
+```
+
+### Extracting with progress reporting
+
+```csharp
+var progress = new Progress<string>(status =>
+{
+    Console.WriteLine($"Status: {status}");
+});
+
+using var resource = new Resource();
+resource.Read("maps/example.vwrld_c");
+
+var fileLoader = new GameFileLoader();
+var contentFile = FileExtract.Extract(resource, fileLoader, progress);
+```
+
+### Extracting multiple resources
+
+```csharp
+var outputDir = "extracted";
+Directory.CreateDirectory(outputDir);
+
+var fileLoader = new GameFileLoader();
+var files = Directory.GetFiles("resources", "*_c", SearchOption.AllDirectories);
+
+foreach (var file in files)
+{
+    using var resource = new Resource();
+    resource.Read(file);
+    
+    var contentFile = FileExtract.Extract(resource, fileLoader);
+    
+    if (contentFile.Data != null)
+    {
+        var outputPath = Path.Combine(outputDir, contentFile.FileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+        File.WriteAllBytes(outputPath, contentFile.Data);
+    }
+    
+    // Also save sub-files
+    foreach (var subFile in contentFile.SubFiles)
+    {
+        if (subFile.Extract != null)
+        {
+            var data = subFile.Extract();
+            var subPath = Path.Combine(outputDir, Path.GetDirectoryName(contentFile.FileName), subFile.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(subPath));
+            File.WriteAllBytes(subPath, data);
+        }
+    }
+}
+```
+
+### Getting file extension
+
+```csharp
+using var resource = new Resource();
+resource.Read("textures/example.vtex_c");
+
+var extension = FileExtract.GetExtension(resource);
+var outputName = $"extracted_texture.{extension}";
+
+Console.WriteLine($"Will extract to: {outputName}");
+```
+
+### Handling additional files
+
+```csharp
+using var resource = new Resource();
+resource.Read("materials/complex.vmat_c");
+
+var fileLoader = new GameFileLoader();
+var contentFile = FileExtract.Extract(resource, fileLoader);
+
+// Save the main material file
+if (contentFile.Data != null)
+{
+    File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+}
+
+// Process additional resources (referenced textures)
+foreach (var additionalFile in contentFile.AdditionalFiles)
+{
+    if (additionalFile.Data != null)
+    {
+        File.WriteAllBytes(additionalFile.FileName, additionalFile.Data);
+    }
+    
+    // Each additional file may have its own sub-files
+    foreach (var subFile in additionalFile.SubFiles)
+    {
+        if (subFile.Extract != null)
+        {
+            var data = subFile.Extract();
+            File.WriteAllBytes(subFile.FileName, data);
+        }
+    }
+}
+```
+
+### Extracting non-resource files
+
+```csharp
+using var stream = File.OpenRead("captions.dat");
+
+if (FileExtract.TryExtractNonResource(stream, "captions.dat", out var contentFile))
+{
+    if (contentFile.Data != null)
+    {
+        File.WriteAllBytes(contentFile.FileName, contentFile.Data);
+        Console.WriteLine($"Extracted to: {contentFile.FileName}");
+    }
+}
+else
+{
+    Console.WriteLine("File format not supported");
+}
+```
+
+## TrackingFileLoader class
+
+A file loader wrapper that tracks which files have been loaded.
+
+### Properties
+
+<ResponseField name="LoadedFilePaths" type="HashSet<string>">
+  Gets the set of file paths that have been loaded.
+</ResponseField>
+
+### Usage
+
+```csharp
+var baseLoader = new GameFileLoader();
+var trackingLoader = new TrackingFileLoader(baseLoader);
+
+var contentFile = FileExtract.Extract(resource, trackingLoader);
+
+// Check which files were loaded during extraction
+foreach (var path in trackingLoader.LoadedFilePaths)
+{
+    Console.WriteLine($"Loaded: {path}");
+}
+```
+
+## Related types
+
+- [Resource](/api/resource) - Main resource file class
+- [Block](/api/block) - Base class for resource blocks
+- `IFileLoader` - Interface for loading resources
+- `GameFileLoader` - Implementation for loading files from game directories

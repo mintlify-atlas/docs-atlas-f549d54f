@@ -1,0 +1,214 @@
+---
+title: File formats
+description: Understanding Source 2 resource file structure, headers, and binary format
+---
+
+Source 2 resources use a binary file format with a consistent structure across all resource types. Understanding this format is essential for parsing and working with Source 2 files.
+
+## File structure overview
+
+Every Source 2 resource file follows this structure:
+
+```
+┌─────────────────────────────────────┐
+│           File Header               │  12 bytes
+│  - File size (4 bytes)              │
+│  - Header version (2 bytes)         │
+│  - Resource version (2 bytes)       │
+│  - Block offset (4 bytes)           │
+│  - Block count (4 bytes)            │
+├─────────────────────────────────────┤
+│         Block Index Table           │  12 bytes per block
+│  For each block:                    │
+│    - Block type (4 bytes)           │
+│    - Offset (4 bytes)               │
+│    - Size (4 bytes)                 │
+├─────────────────────────────────────┤
+│          Block Data                 │  Variable size
+│  - Block 1 data                     │
+│  - Block 2 data                     │
+│  - ...                              │
+│  (16-byte aligned)                  │
+└─────────────────────────────────────┘
+```
+
+## File header
+
+The file header appears at the beginning of every resource file.
+
+### Header fields
+
+| Offset | Type | Field | Description |
+|--------|------|-------|-------------|
+| 0x00 | `uint32` | FileSize | Total size of the resource file in bytes |
+| 0x04 | `uint16` | HeaderVersion | Header version (should be 12) |
+| 0x06 | `uint16` | Version | Resource-specific version number |
+| 0x08 | `uint32` | BlockOffset | Offset from start of file to block table |
+| 0x0C | `uint32` | BlockCount | Number of blocks in this resource |
+
+### Header version
+
+The expected header version is **12**, defined as `KnownHeaderVersion` in `Resource.cs:19`:
+
+```csharp
+public const ushort KnownHeaderVersion = 12;
+```
+
+<Warning>
+If the header version doesn't match 12, ValveResourceFormat will throw an `UnexpectedMagicException`. This indicates the file is not a valid Source 2 resource or uses an unsupported format.
+</Warning>
+
+### Magic numbers
+
+While parsing, ValveResourceFormat checks for various magic numbers to identify file types:
+
+| Magic | Value | Description |
+|-------|-------|-------------|
+| `0x03564B56` | VKV\x03 | Binary keyvalues 3 with custom block compression |
+| `0x4B563301` | KV3\x01 | Binary keyvalues 3 version 1 |
+| `0x4B563302` | KV3\x02 | Binary keyvalues 3 version 2 |
+| `0x4B563303` | KV3\x03 | Binary keyvalues 3 version 3 |
+| `0x4B563304` | KV3\x04 | Binary keyvalues 3 version 4 |
+| `0x4B563305` | KV3\x05 | Binary keyvalues 3 version 5 |
+| `0x564B4256` | VBKV | Binary keyvalues 1 |
+| `0x55AA1234` | VPK | Valve package file |
+| `0x44434356` | VCCD | Closed captions |
+| `0xC4CCACE8` | - | Tools asset info |
+| `0xC4CCACE9` | - | Tools asset info (newer) |
+| `0x32736376` | vcs2 | Compiled shader |
+| `0x414D5A4C` | LZMA | LZMA compression marker |
+| `0x64637662` | bvcd | Binary choreo scene |
+| `0xFEEDFACE` | - | Navigation mesh |
+| `0xFADEBEAD` | - | Grid navigation |
+| `0x31415926` | - | MurmurHash2 seed (StringToken) |
+| `0xEDABCDEF` | - | MurmurHash64 seed (resource IDs) |
+| `VFONT1` | - | Encrypted font file |
+| `0x00564645` | VFE | Flex scene file |
+
+<Note>
+VPK files (magic `0x55AA1234`) should be parsed using the [ValvePak library](https://github.com/ValveResourceFormat/ValvePak), not the resource parser.
+</Note>
+
+## Block index table
+
+Immediately following the header is the block index table. Each entry is 12 bytes:
+
+```
+struct BlockIndexEntry {
+    uint32 type;      // Block type (e.g., 'DATA', 'RERL')
+    uint32 offset;    // Relative offset from this position
+    uint32 size;      // Size of block data in bytes
+}
+```
+
+The offset is relative to the position of the offset field itself, not the start of the file.
+
+## Block data
+
+Block data is stored sequentially after the index table. Each block is aligned to 16-byte boundaries for performance.
+
+### Block alignment
+
+When serializing resources, ValveResourceFormat aligns blocks to 16 bytes and may insert "S2V" as padding:
+
+```csharp
+// From Resource.cs:384-404
+var currentPos = stream.Position;
+var padding = (16 - currentPos % 16) % 16;
+
+if (padding >= 5)
+{
+    var halfPadding = padding / 2;
+    var s2vStart = halfPadding - 1;
+    
+    // Add "S2V" signature in padding
+    writer.Write((byte)'S');
+    writer.Write((byte)'2');
+    writer.Write((byte)'V');
+}
+```
+
+## Reading resources
+
+The `Resource` class provides methods for reading resource files:
+
+### From file
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/file.vtex_c");
+```
+
+### From stream
+
+```csharp
+using var stream = File.OpenRead("path/to/file.vmdl_c");
+using var resource = new Resource();
+resource.Read(stream);
+```
+
+<Warning>
+The input stream must remain open while accessing data from the resource, as some operations perform lazy reads from the stream.
+</Warning>
+
+## File size validation
+
+By default, ValveResourceFormat verifies that the entire stream was consumed during parsing:
+
+```csharp
+// Verify file size matches
+if (verifyFileSize && Reader.BaseStream.Length != fullFileSize)
+{
+    throw new InvalidDataException(
+        $"File size ({Reader.BaseStream.Length}) does not match " +
+        $"size specified in file ({fullFileSize})"
+    );
+}
+```
+
+Some resource types (textures, sounds) have additional data beyond the resource structure that extends the file size.
+
+## Full file size calculation
+
+Certain resource types have streaming data after the main resource:
+
+```csharp
+// From Resource.cs:82-104
+public uint FullFileSize
+{
+    get
+    {
+        var size = FileSize;
+        
+        if (ResourceType == ResourceType.Sound && DataBlock is Sound dataSound)
+        {
+            size += dataSound.StreamingDataSize;
+        }
+        else if (ResourceType == ResourceType.Texture && DataBlock is Texture dataTexture)
+        {
+            size += (uint)dataTexture.CalculateTextureDataSize();
+        }
+        
+        return size;
+    }
+}
+```
+
+## Serialization
+
+Resources can be serialized back to binary format:
+
+```csharp
+using var outputStream = File.Create("output.vtex_c");
+resource.Serialize(outputStream);
+```
+
+<Warning>
+Serialization is not production-ready. Not all blocks support serialization and will throw exceptions. The total file size must not exceed `uint.MaxValue`.
+</Warning>
+
+## Related resources
+
+- [Blocks](/concepts/blocks) - Learn about the block system
+- [Resource types](/concepts/resource-types) - Complete list of supported resource types
+- [Resource class reference](/api/resource)

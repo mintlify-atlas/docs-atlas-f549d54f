@@ -1,0 +1,397 @@
+---
+title: Working with VPK archives
+description: Browse, extract, and read files from Source 2 VPK package archives using the ValvePak library
+---
+
+This guide covers working with VPK (Valve Package) archives, which are used to store game assets in Source 2.
+
+## Understanding VPK files
+
+VPK archives come in two forms:
+
+- **Single-file VPK**: All data in one `.vpk` file
+- **Multi-file VPK**: A directory file (`_dir.vpk`) plus numbered data files (`_001.vpk`, `_002.vpk`, etc.)
+
+For multi-file VPKs, always open the `_dir.vpk` file.
+
+## Opening VPK archives
+
+<Steps>
+
+### Install ValvePak
+
+ValveResourceFormat uses the [ValvePak library](https://github.com/ValveResourceFormat/ValvePak):
+
+```xml
+<PackageReference Include="ValvePak" Version="4.0.0" />
+```
+
+### Open a VPK package
+
+```csharp
+using SteamDatabase.ValvePak;
+
+using var package = new Package();
+package.Read("game/pak01_dir.vpk");
+
+Console.WriteLine($"VPK version: {package.Version}");
+Console.WriteLine($"File count: {package.Entries.Count}");
+```
+
+### Browse entries by extension
+
+```csharp
+// VPK entries are organized by file extension
+foreach (var (extension, entries) in package.Entries)
+{
+    Console.WriteLine($"{extension}: {entries.Count} files");
+}
+```
+
+</Steps>
+
+## Reading files from VPK
+
+### Extract a specific file
+
+```csharp
+// Find a file by path
+var entry = package.FindEntry("materials/example.vmat_c");
+
+if (entry != null)
+{
+    // Read file data
+    package.ReadEntry(entry, out var data);
+    
+    // Save to disk
+    File.WriteAllBytes("extracted.vmat_c", data);
+}
+```
+
+### Read as a stream
+
+```csharp
+var entry = package.FindEntry("models/props/example.vmdl_c");
+
+if (entry != null)
+{
+    using var stream = package.GetEntryStream(entry);
+    
+    // Read resource from stream
+    using var resource = new Resource();
+    resource.Read(stream);
+    
+    Console.WriteLine($"Resource type: {resource.ResourceType}");
+}
+```
+
+## Iterating through files
+
+### List all files of a type
+
+```csharp
+// Get all texture files
+if (package.Entries.TryGetValue("vtex_c", out var textureEntries))
+{
+    foreach (var entry in textureEntries)
+    {
+        Console.WriteLine($"Texture: {entry.GetFullPath()}");
+        Console.WriteLine($"  Size: {entry.TotalLength} bytes");
+        Console.WriteLine($"  CRC: {entry.CRC32:X8}");
+    }
+}
+```
+
+### Search for files
+
+```csharp
+// Find all files matching a pattern
+if (package.Entries.TryGetValue("vmdl_c", out var modelEntries))
+{
+    var props = modelEntries
+        .Where(e => e.GetFullPath().Contains("props/"))
+        .ToList();
+    
+    Console.WriteLine($"Found {props.Count} prop models");
+    
+    foreach (var prop in props)
+    {
+        Console.WriteLine($"  {prop.GetFullPath()}");
+    }
+}
+```
+
+## Using GameFileLoader with VPK
+
+The `GameFileLoader` class provides high-level access to VPK files:
+
+```csharp
+using ValveResourceFormat.IO;
+
+using var package = new Package();
+package.Read("game/pak01_dir.vpk");
+
+var fileLoader = new GameFileLoader(package, currentFileName: null);
+
+// Load a compiled resource
+var resource = fileLoader.LoadFile("materials/example.vmat_c");
+
+if (resource != null)
+{
+    var material = (Material)resource.DataBlock!;
+    Console.WriteLine($"Material: {material.Name}");
+    
+    resource.Dispose();
+}
+```
+
+## Extracting multiple files
+
+### Extract all files of a type
+
+```csharp
+var outputDir = "extracted/materials";
+Directory.CreateDirectory(outputDir);
+
+if (package.Entries.TryGetValue("vmat_c", out var materials))
+{
+    foreach (var entry in materials)
+    {
+        package.ReadEntry(entry, out var data);
+        
+        var outputPath = Path.Combine(outputDir, entry.GetFileName());
+        var dir = Path.GetDirectoryName(outputPath);
+        
+        if (dir != null)
+        {
+            Directory.CreateDirectory(dir);
+        }
+        
+        File.WriteAllBytes(outputPath, data);
+    }
+    
+    Console.WriteLine($"Extracted {materials.Count} materials");
+}
+```
+
+### Extract with directory structure
+
+```csharp
+void ExtractEntry(Package package, PackageEntry entry, string baseDir)
+{
+    var relativePath = entry.GetFullPath();
+    var outputPath = Path.Combine(baseDir, relativePath);
+    
+    var directory = Path.GetDirectoryName(outputPath);
+    if (directory != null)
+    {
+        Directory.CreateDirectory(directory);
+    }
+    
+    package.ReadEntry(entry, out var data);
+    File.WriteAllBytes(outputPath, data);
+}
+
+// Extract all textures preserving directory structure
+if (package.Entries.TryGetValue("vtex_c", out var textures))
+{
+    foreach (var entry in textures)
+    {
+        ExtractEntry(package, entry, "extracted");
+    }
+}
+```
+
+## VPK metadata
+
+### Get file information
+
+```csharp
+var entry = package.FindEntry("materials/example.vmat_c");
+
+if (entry != null)
+{
+    Console.WriteLine($"File: {entry.GetFullPath()}");
+    Console.WriteLine($"Directory: {entry.DirectoryName}");
+    Console.WriteLine($"File name: {entry.FileName}");
+    Console.WriteLine($"Extension: {entry.TypeName}");
+    Console.WriteLine($"Size: {entry.TotalLength} bytes");
+    Console.WriteLine($"CRC32: {entry.CRC32:X8}");
+    Console.WriteLine($"Archive index: {entry.ArchiveIndex}");
+}
+```
+
+### Check package version
+
+```csharp
+Console.WriteLine($"VPK version: {package.Version}");
+
+if (package.Version == 1)
+{
+    Console.WriteLine("Version 1 VPK (Source 1)");
+}
+else if (package.Version == 2)
+{
+    Console.WriteLine("Version 2 VPK (Source 2)");
+}
+```
+
+## Performance considerations
+
+### Cache entry lookups
+
+If you're doing many lookups, cache the results:
+
+```csharp
+var materialLookup = package.Entries
+    .Where(kvp => kvp.Key == "vmat_c")
+    .SelectMany(kvp => kvp.Value)
+    .ToDictionary(e => e.GetFullPath(), e => e);
+
+if (materialLookup.TryGetValue("materials/example.vmat_c", out var entry))
+{
+    // Fast lookup
+}
+```
+
+### Read files in parallel
+
+```csharp
+using System.Collections.Concurrent;
+
+var results = new ConcurrentBag<string>();
+
+if (package.Entries.TryGetValue("vmat_c", out var materials))
+{
+    Parallel.ForEach(materials.Take(100), entry =>
+    {
+        package.ReadEntry(entry, out var data);
+        results.Add($"Processed {entry.GetFileName()}");
+    });
+}
+
+foreach (var result in results)
+{
+    Console.WriteLine(result);
+}
+```
+
+## Working with multiple VPKs
+
+### Load multiple packages
+
+```csharp
+var packages = new List<Package>();
+
+try
+{
+    var pakFiles = Directory.GetFiles("game", "*_dir.vpk");
+    
+    foreach (var pakFile in pakFiles)
+    {
+        var package = new Package();
+        package.Read(pakFile);
+        packages.Add(package);
+        
+        Console.WriteLine($"Loaded: {Path.GetFileName(pakFile)}");
+    }
+}
+finally
+{
+    // Clean up
+    foreach (var package in packages)
+    {
+        package.Dispose();
+    }
+}
+```
+
+### Search across multiple VPKs
+
+```csharp
+PackageEntry? FindFileInPackages(List<Package> packages, string filePath)
+{
+    foreach (var package in packages)
+    {
+        var entry = package.FindEntry(filePath);
+        if (entry != null)
+        {
+            return entry;
+        }
+    }
+    
+    return null;
+}
+```
+
+## Common file extensions in VPK
+
+Source 2 VPK archives typically contain:
+
+| Extension | Resource Type |
+|-----------|---------------|
+| `vmdl_c` | Model |
+| `vmesh_c` | Mesh |
+| `vmat_c` | Material |
+| `vtex_c` | Texture |
+| `vpcf_c` | Particle System |
+| `vsnd_c` | Sound |
+| `vsndevts_c` | Sound Events |
+| `vmap_c` | Map |
+| `vwrld_c` | World |
+| `vwnod_c` | World Node |
+| `vanmgrph_c` | Animation Graph |
+| `vagrp_c` | Animation Group |
+| `vanim_c` | Animation |
+| `vphys_c` | Physics |
+| `vcs` | Compiled Shader |
+
+## Example: Extract all textures as PNG
+
+```csharp
+using ValveResourceFormat;
+using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.IO;
+
+var outputDir = "extracted_textures";
+Directory.CreateDirectory(outputDir);
+
+if (package.Entries.TryGetValue("vtex_c", out var textures))
+{
+    foreach (var entry in textures.Take(10)) // Limit to first 10
+    {
+        try
+        {
+            package.ReadEntry(entry, out var data);
+            
+            using var ms = new MemoryStream(data);
+            using var resource = new Resource();
+            resource.Read(ms);
+            
+            var texture = (Texture)resource.DataBlock!;
+            using var bitmap = texture.GenerateBitmap();
+            
+            var pngBytes = TextureExtract.ToPngImage(bitmap);
+            
+            var outputName = Path.ChangeExtension(
+                entry.GetFileName(),
+                ".png"
+            );
+            var outputPath = Path.Combine(outputDir, outputName);
+            
+            File.WriteAllBytes(outputPath, pngBytes);
+            Console.WriteLine($"Extracted: {outputName}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error extracting {entry.GetFileName()}: {ex.Message}");
+        }
+    }
+}
+```
+
+## Next steps
+
+- [Read resource files](/guides/reading-resources)
+- [Extract textures to PNG/TGA](/guides/extracting-textures)
+- [Work with models and meshes](/guides/working-with-models)

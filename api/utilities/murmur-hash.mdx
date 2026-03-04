@@ -1,0 +1,126 @@
+---
+title: MurmurHash2
+description: MurmurHash2 hashing algorithm implementation for Source 2 string token generation
+---
+
+## Overview
+
+The `MurmurHash2` class provides an implementation of the MurmurHash2 hashing algorithm, which is used throughout Source 2 resource formats for generating consistent 32-bit hash values from strings. This hashing is primarily used for string token generation in entity properties, shader attributes, and other resource identifiers.
+
+<Note>
+MurmurHash2 is located in the `ValveResourceFormat.ThirdParty` namespace as it's a third-party algorithm implementation.
+</Note>
+
+## Methods
+
+### Hash (string)
+
+```csharp
+public static uint Hash(string data, uint seed)
+```
+
+Computes a MurmurHash2 hash for the given string.
+
+<ParamField path="data" type="string">
+  The string to hash
+</ParamField>
+
+<ParamField path="seed" type="uint">
+  The hash seed value. For Source 2 compatibility, use `StringToken.MURMUR2SEED` (0x31415926)
+</ParamField>
+
+<ResponseField name="returns" type="uint">
+  The 32-bit hash value
+</ResponseField>
+
+**Example:**
+```csharp
+using ValveResourceFormat.ThirdParty;
+using ValveResourceFormat.Utils;
+
+// Hash a string using Source 2's standard seed
+var hash = MurmurHash2.Hash("targetname", StringToken.MURMUR2SEED);
+```
+
+### Hash (ReadOnlySpan)
+
+```csharp
+public static uint Hash(ReadOnlySpan<char> data, uint seed)
+```
+
+Computes a MurmurHash2 hash for the given character span. This overload provides better performance when working with string slices or spans.
+
+<ParamField path="data" type="ReadOnlySpan<char>">
+  The character span to hash
+</ParamField>
+
+<ParamField path="seed" type="uint">
+  The hash seed value. For Source 2 compatibility, use `StringToken.MURMUR2SEED` (0x31415926)
+</ParamField>
+
+<ResponseField name="returns" type="uint">
+  The 32-bit hash value. Returns 0 for empty spans.
+</ResponseField>
+
+## Algorithm details
+
+MurmurHash2 uses the following constants internally:
+
+- **M constant**: `0x5bd1e995` - Mixing multiplier
+- **R constant**: `24` - Bit rotation amount
+
+The algorithm:
+1. Initializes the hash with the seed XORed with the input length
+2. Processes the input in 4-character chunks, mixing each chunk with the hash
+3. Handles remaining 1-3 characters separately
+4. Performs final mixing to ensure good avalanche properties
+
+## Usage in Source 2 parsing
+
+### String token generation
+
+MurmurHash2 is the underlying hash function for `StringToken.Get()`:
+
+```csharp
+public static uint Get(string key) => MurmurHash2.Hash(key, MURMUR2SEED);
+```
+
+### Shader attribute verification
+
+When parsing VFX shader files, MurmurHash2 is used to verify attribute name hashes:
+
+```csharp
+var murmurCheck = MurmurHash2.Hash(Name0.ToLowerInvariant(), StringToken.MURMUR2SEED);
+if (Murmur32 != murmurCheck)
+{
+    throw new ShaderParserException("Murmur check failed on header name");
+}
+```
+
+### Material texture hashing
+
+Combined texture paths are hashed for caching and identification:
+
+```csharp
+var ormHash = MurmurHash2.Hash(
+    string.Join("|", ormTexturePaths), 
+    StringToken.MURMUR2SEED
+);
+```
+
+## Performance considerations
+
+- The `ReadOnlySpan<char>` overload is more efficient when working with substrings or when the string is already available as a span
+- Empty strings return 0 immediately without processing
+- The algorithm processes 4 characters at a time for optimal performance on most architectures
+
+## Seed value
+
+Source 2 uses the seed value `0x31415926` (decimal: 826,688,294), which is a hexadecimal representation of the digits of pi. This seed is exposed as `StringToken.MURMUR2SEED` for consistency across the codebase.
+
+**Always use this seed when working with Source 2 resources:**
+```csharp
+var hash = MurmurHash2.Hash(myString, StringToken.MURMUR2SEED);
+```
+
+Using a different seed will produce incompatible hash values that won't match Source 2's expected values.

@@ -1,0 +1,519 @@
+---
+title: Scene renderer
+description: Main renderer classes for rendering Source 2 scenes with OpenGL
+---
+
+The scene renderer provides OpenGL-based rendering for Source 2 game assets with support for physically-based rendering, shadows, post-processing, and multiple render passes.
+
+## Renderer
+
+Main renderer class that orchestrates scene rendering with support for shadows, post-processing, and multiple render passes.
+
+### Constructor
+
+```csharp
+public Renderer(RendererContext rendererContext)
+```
+
+<ParamField path="rendererContext" type="RendererContext">
+  Shared context containing loaders and caches
+</ParamField>
+
+### Properties
+
+<ResponseField name="Uptime" type="float">
+  Total elapsed time since renderer initialization
+</ResponseField>
+
+<ResponseField name="DeltaTime" type="float">
+  Time elapsed since last frame
+</ResponseField>
+
+<ResponseField name="RendererContext" type="RendererContext">
+  Shared context for loaders and caches
+</ResponseField>
+
+<ResponseField name="Camera" type="Camera">
+  Active camera used for rendering
+</ResponseField>
+
+<ResponseField name="Scene" type="Scene">
+  Primary scene to render
+</ResponseField>
+
+<ResponseField name="SkyboxScene" type="Scene?">
+  Optional 3D skybox scene rendered behind main scene
+</ResponseField>
+
+<ResponseField name="MainFramebuffer" type="Framebuffer?">
+  Target framebuffer for rendering (must be set before rendering)
+</ResponseField>
+
+<ResponseField name="Postprocess" type="PostProcessRenderer">
+  Post-processing renderer for tonemapping and effects
+</ResponseField>
+
+<ResponseField name="ShadowTextureSize" type="int" default="1024">
+  Resolution of shadow depth buffer
+</ResponseField>
+
+<ResponseField name="IsWireframe" type="bool" default="false">
+  Enable wireframe rendering mode
+</ResponseField>
+
+<ResponseField name="ShowSkybox" type="bool" default="true">
+  Enable skybox rendering
+</ResponseField>
+
+### Methods
+
+#### Initialize
+
+Initializes the renderer and creates GPU resources.
+
+```csharp
+public void Initialize()
+```
+
+Must be called before rendering. Creates uniform buffers, shadow framebuffer, and compiles required shaders.
+
+#### LoadRendererResources
+
+Loads essential textures like BRDF lookup tables and blue noise.
+
+```csharp
+public void LoadRendererResources()
+```
+
+Loads default textures used for PBR lighting calculations. Attempts to load from game files first, falls back to embedded resources.
+
+#### Render
+
+Renders the scene to a framebuffer in linear color space.
+
+```csharp
+public void Render(Framebuffer framebuffer)
+```
+
+<ParamField path="framebuffer" type="Framebuffer">
+  Target framebuffer with HDR color support
+</ParamField>
+
+Performs shadow pass followed by main scene rendering. Result is in linear space and requires post-processing.
+
+#### PostprocessRender
+
+Resolves MSAA, applies post-processing, and converts to gamma space.
+
+```csharp
+public void PostprocessRender(
+    Framebuffer inputFramebuffer,
+    Framebuffer outputFramebuffer,
+    bool flipY = false
+)
+```
+
+<ParamField path="inputFramebuffer" type="Framebuffer">
+  MSAA framebuffer containing linear HDR color
+</ParamField>
+
+<ParamField path="outputFramebuffer" type="Framebuffer">
+  Non-MSAA target for final LDR output
+</ParamField>
+
+<ParamField path="flipY" type="bool" default="false">
+  Flip output vertically for certain rendering contexts
+</ParamField>
+
+#### Update
+
+Updates scene state and prepares for next frame.
+
+```csharp
+public void Update(Scene.UpdateContext updateContext)
+```
+
+<ParamField path="updateContext" type="Scene.UpdateContext">
+  Update context with camera, timestep, and text renderer
+</ParamField>
+
+Updates animations, recalculates matrices, sets up shadows, and collects draw calls for both main and skybox scenes.
+
+### Usage example
+
+```csharp
+using ValveResourceFormat.Renderer;
+
+// Create renderer context
+var rendererContext = new RendererContext(fileLoader, logger);
+var renderer = new Renderer(rendererContext);
+
+// Initialize and load resources
+renderer.Initialize();
+renderer.LoadRendererResources();
+
+// Set up scene and framebuffers
+renderer.Scene = myScene;
+renderer.MainFramebuffer = mainFramebuffer;
+
+// Render loop
+while (running)
+{
+    // Update scene
+    var updateContext = new Scene.UpdateContext
+    {
+        Camera = renderer.Camera,
+        TextRenderer = textRenderer,
+        Timestep = deltaTime
+    };
+    renderer.Update(updateContext);
+
+    // Render to HDR framebuffer
+    renderer.Render(hdrFramebuffer);
+
+    // Apply post-processing and output to screen
+    renderer.PostprocessRender(hdrFramebuffer, screenFramebuffer);
+}
+```
+
+## Scene
+
+Container for scene nodes with spatial partitioning, lighting, and render state management.
+
+### Constructor
+
+```csharp
+public Scene(RendererContext context, float sizeHint = 32768)
+```
+
+<ParamField path="context" type="RendererContext">
+  Renderer context for shared resources
+</ParamField>
+
+<ParamField path="sizeHint" type="float" default="32768">
+  Spatial partitioning size hint for octrees
+</ParamField>
+
+### Properties
+
+<ResponseField name="RendererContext" type="RendererContext">
+  Shared renderer context
+</ResponseField>
+
+<ResponseField name="LightingInfo" type="WorldLightingInfo">
+  Scene lighting data including sun, ambient, and shadows
+</ResponseField>
+
+<ResponseField name="FogInfo" type="WorldFogInfo">
+  Fog settings and parameters
+</ResponseField>
+
+<ResponseField name="PostProcessInfo" type="WorldPostProcessInfo">
+  Post-processing volume information
+</ResponseField>
+
+<ResponseField name="StaticOctree" type="Octree">
+  Spatial partitioning for static geometry
+</ResponseField>
+
+<ResponseField name="DynamicOctree" type="Octree">
+  Spatial partitioning for dynamic objects
+</ResponseField>
+
+<ResponseField name="PhysicsWorld" type="Rubikon?">
+  Optional physics simulation world
+</ResponseField>
+
+<ResponseField name="FogEnabled" type="bool" default="true">
+  Enable fog rendering
+</ResponseField>
+
+<ResponseField name="EnableOcclusionCulling" type="bool" default="true">
+  Enable GPU occlusion culling
+</ResponseField>
+
+<ResponseField name="EnableIndirectDraws" type="bool" default="true">
+  Enable GPU-driven indirect rendering
+</ResponseField>
+
+### Methods
+
+#### Initialize
+
+Initializes scene buffers and prepares GPU resources.
+
+```csharp
+public void Initialize()
+```
+
+Builds octrees, creates uniform buffers, calculates light probes and environment maps, and prepares instance data.
+
+#### Add
+
+Adds a scene node to the scene.
+
+```csharp
+public void Add(SceneNode node, bool dynamic)
+```
+
+<ParamField path="node" type="SceneNode">
+  Scene node to add
+</ParamField>
+
+<ParamField path="dynamic" type="bool">
+  Whether node is dynamic (can move) or static
+</ParamField>
+
+#### Remove
+
+Removes a scene node from the scene.
+
+```csharp
+public void Remove(SceneNode node, bool dynamic)
+```
+
+<ParamField path="node" type="SceneNode">
+  Scene node to remove
+</ParamField>
+
+<ParamField path="dynamic" type="bool">
+  Whether node is in dynamic or static octree
+</ParamField>
+
+#### Find
+
+Finds a scene node by ID.
+
+```csharp
+public SceneNode? Find(uint id)
+```
+
+<ParamField path="id" type="uint">
+  Node ID to search for
+</ParamField>
+
+Returns the scene node with the given ID, or null if not found.
+
+#### Update
+
+Updates all scene nodes and spatial structures.
+
+```csharp
+public void Update(Scene.UpdateContext updateContext)
+```
+
+<ParamField path="updateContext" type="Scene.UpdateContext">
+  Update context with camera, timestep, and text renderer
+</ParamField>
+
+Updates all nodes, rebuilds octrees if dirty, and refreshes instance transforms.
+
+### Nested types
+
+#### UpdateContext
+
+Context data passed to scene nodes during per-frame update.
+
+```csharp
+public readonly struct UpdateContext
+{
+    public required Camera Camera { get; init; }
+    public required TextRenderer TextRenderer { get; init; }
+    public required float Timestep { get; init; }
+}
+```
+
+#### RenderContext
+
+Context data passed to scene nodes during draw calls.
+
+```csharp
+public struct RenderContext
+{
+    public required Scene Scene { get; set; }
+    public required Camera Camera { get; init; }
+    public required Framebuffer Framebuffer { get; set; }
+    public RenderPass RenderPass { get; set; }
+    public Shader? ReplacementShader { get; set; }
+}
+```
+
+## RendererContext
+
+Shared context containing loaders and caches used by the renderer.
+
+### Constructor
+
+```csharp
+public RendererContext(GameFileLoader fileLoader, ILogger logger)
+```
+
+<ParamField path="fileLoader" type="GameFileLoader">
+  Game file loader for resource access
+</ParamField>
+
+<ParamField path="logger" type="ILogger">
+  Logger for diagnostic output
+</ParamField>
+
+### Properties
+
+<ResponseField name="FileLoader" type="GameFileLoader">
+  Game file loader for loading resources from packages
+</ResponseField>
+
+<ResponseField name="MaterialLoader" type="MaterialLoader">
+  Material and texture loader and cache
+</ResponseField>
+
+<ResponseField name="ShaderLoader" type="ShaderLoader">
+  Shader compiler and cache
+</ResponseField>
+
+<ResponseField name="MeshBufferCache" type="GPUMeshBufferCache">
+  GPU mesh buffer and vertex array object cache
+</ResponseField>
+
+<ResponseField name="Logger" type="ILogger">
+  Logger for diagnostic messages
+</ResponseField>
+
+<ResponseField name="MaxTextureSize" type="int" default="1024">
+  Maximum texture mip size to load in MaterialLoader
+</ResponseField>
+
+<ResponseField name="FieldOfView" type="float" default="60.0">
+  Field of view in degrees for Camera
+</ResponseField>
+
+## PostProcessRenderer
+
+Post-processing renderer for tonemapping, color grading, and adaptive exposure.
+
+### Constructor
+
+```csharp
+public PostProcessRenderer(RendererContext rendererContext)
+```
+
+<ParamField path="rendererContext" type="RendererContext">
+  Renderer context for shader loading
+</ParamField>
+
+### Properties
+
+<ResponseField name="AverageLuminance" type="float">
+  Current average scene luminance for auto-exposure
+</ResponseField>
+
+<ResponseField name="State" type="PostProcessState">
+  Post-processing state from scene volumes
+</ResponseField>
+
+<ResponseField name="Enabled" type="bool" default="true">
+  Enable post-processing effects
+</ResponseField>
+
+<ResponseField name="ColorCorrectionEnabled" type="bool" default="true">
+  Enable color correction and tonemapping
+</ResponseField>
+
+<ResponseField name="CurrentExposure" type="float">
+  Current exposure value after adaptation
+</ResponseField>
+
+<ResponseField name="CustomExposure" type="float" default="-1">
+  Manual exposure override (-1 for auto)
+</ResponseField>
+
+<ResponseField name="Bloom" type="BloomRenderer">
+  Bloom effect renderer
+</ResponseField>
+
+<ResponseField name="DOF" type="DOFRenderer">
+  Depth-of-field effect renderer
+</ResponseField>
+
+### Methods
+
+#### Load
+
+Loads post-processing shaders for the given MSAA sample count.
+
+```csharp
+public void Load(int msaaSamples)
+```
+
+<ParamField path="msaaSamples" type="int">
+  Number of MSAA samples (0, 2, 4, 8, etc.)
+</ParamField>
+
+#### ResolveMsaa
+
+Resolves MSAA color and/or depth using compute shaders.
+
+```csharp
+public void ResolveMsaa(
+    Framebuffer source,
+    RenderTexture destColor,
+    RenderTexture destDepth,
+    bool resolveColor,
+    bool resolveDepth
+)
+```
+
+<ParamField path="source" type="Framebuffer">
+  Source MSAA framebuffer
+</ParamField>
+
+<ParamField path="destColor" type="RenderTexture">
+  Target for resolved color (RGBA16F)
+</ParamField>
+
+<ParamField path="destDepth" type="RenderTexture">
+  Target for resolved depth (R32F)
+</ParamField>
+
+<ParamField path="resolveColor" type="bool">
+  Whether to resolve color attachment
+</ParamField>
+
+<ParamField path="resolveDepth" type="bool">
+  Whether to resolve depth attachment
+</ParamField>
+
+Uses Karis average for HDR-aware color resolve and min filter for depth (conservative for reverse-Z).
+
+#### Render
+
+Resolves MSAA, applies effects, tonemaps, and writes final LDR image.
+
+```csharp
+public void Render(
+    Framebuffer colorBufferRead,
+    Framebuffer colorBufferDraw,
+    RenderTexture resolveTarget,
+    Camera camera,
+    bool flipY
+)
+```
+
+<ParamField path="colorBufferRead" type="Framebuffer">
+  Input MSAA framebuffer
+</ParamField>
+
+<ParamField path="colorBufferDraw" type="Framebuffer">
+  Output LDR framebuffer
+</ParamField>
+
+<ParamField path="resolveTarget" type="RenderTexture">
+  Intermediate HDR resolve target
+</ParamField>
+
+<ParamField path="camera" type="Camera">
+  Camera for DOF calculations
+</ParamField>
+
+<ParamField path="flipY" type="bool">
+  Flip output vertically
+</ParamField>

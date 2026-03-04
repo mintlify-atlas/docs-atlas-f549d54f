@@ -1,0 +1,220 @@
+---
+title: Mesh
+description: API reference for the Mesh class that represents mesh resources with geometry and vertex buffer data
+---
+
+## Overview
+
+The `Mesh` class represents a mesh resource containing geometry and vertex buffer data. It provides access to vertex/index buffers, morph data, attachments, and hitbox sets.
+
+**Namespace:** `ValveResourceFormat.ResourceTypes`
+
+## Properties
+
+<ResponseField name="VBIB" type="VBIB">
+  The mesh's vertex/index buffer block (VBIB).
+</ResponseField>
+
+<ResponseField name="Name" type="string">
+  The mesh name.
+</ResponseField>
+
+<ResponseField name="MinBounds" type="Vector3">
+  The minimum bounds of the mesh.
+</ResponseField>
+
+<ResponseField name="MaxBounds" type="Vector3">
+  The maximum bounds of the mesh.
+</ResponseField>
+
+<ResponseField name="MorphData" type="Morph">
+  The morph data for this mesh.
+</ResponseField>
+
+<ResponseField name="Attachments" type="Dictionary<string, Attachment>">
+  The attachments associated with this mesh.
+</ResponseField>
+
+<ResponseField name="HitboxSets" type="Dictionary<string, Hitbox[]>">
+  The hitbox sets associated with this mesh.
+</ResponseField>
+
+## Methods
+
+### GetBounds
+
+Calculates and sets the bounding box from scene objects.
+
+```csharp
+public void GetBounds()
+```
+
+### LoadExternalMorphData
+
+Loads external morph data from the file loader.
+
+```csharp
+public void LoadExternalMorphData(IFileLoader fileLoader)
+```
+
+<ParamField path="fileLoader" type="IFileLoader" required>
+  The file loader to use.
+</ParamField>
+
+### IsCompressedNormalTangent
+
+Determines if compressed normal tangent is enabled for the draw call.
+
+```csharp
+public static bool IsCompressedNormalTangent(KVObject drawCall)
+```
+
+<ParamField path="drawCall" type="KVObject" required>
+  The draw call data.
+</ParamField>
+
+**Returns:** `bool` - True if compressed normal tangent is used.
+
+### HasBakedLightingFromLightMap
+
+Determines if the draw call has baked lighting from lightmap.
+
+```csharp
+public static bool HasBakedLightingFromLightMap(KVObject drawCall)
+```
+
+<ParamField path="drawCall" type="KVObject" required>
+  The draw call data.
+</ParamField>
+
+**Returns:** `bool` - True if baked lighting from lightmap is present.
+
+### HasBakedLightingFromVertexStream
+
+Determines if the draw call has baked lighting from vertex stream.
+
+```csharp
+public static bool HasBakedLightingFromVertexStream(KVObject drawCall)
+```
+
+<ParamField path="drawCall" type="KVObject" required>
+  The draw call data.
+</ParamField>
+
+**Returns:** `bool` - True if baked lighting from vertex stream is present.
+
+### IsOccluder
+
+Determines if the draw call is an occluder.
+
+```csharp
+public static bool IsOccluder(KVObject drawCall)
+```
+
+<ParamField path="drawCall" type="KVObject" required>
+  The draw call data.
+</ParamField>
+
+**Returns:** `bool` - True if the draw call is an occluder.
+
+## Accessing from Resource
+
+Mesh data is accessed from the DATA block (or MDAT block) of a resource:
+
+```csharp
+using var resource = new Resource();
+resource.Read("path/to/mesh.vmesh_c");
+
+var mesh = (Mesh)resource.DataBlock;
+
+// Calculate bounds
+mesh.GetBounds();
+Console.WriteLine($"Bounds: {mesh.MinBounds} to {mesh.MaxBounds}");
+
+// Access vertex/index buffers
+var vbib = mesh.VBIB;
+Console.WriteLine($"Vertex buffers: {vbib.VertexBuffers.Count}");
+Console.WriteLine($"Index buffers: {vbib.IndexBuffers.Count}");
+```
+
+## Example: Reading mesh geometry
+
+```csharp
+var mesh = (Mesh)resource.DataBlock;
+var vbib = mesh.VBIB;
+
+// Calculate mesh bounds
+mesh.GetBounds();
+Console.WriteLine($"Min: ({mesh.MinBounds.X}, {mesh.MinBounds.Y}, {mesh.MinBounds.Z})");
+Console.WriteLine($"Max: ({mesh.MaxBounds.X}, {mesh.MaxBounds.Y}, {mesh.MaxBounds.Z})");
+
+// Access scene objects and draw calls
+var sceneObjects = mesh.Data.GetArray("m_sceneObjects");
+foreach (var sceneObject in sceneObjects)
+{
+    var drawCalls = sceneObject.GetArray("m_drawCalls");
+    foreach (var drawCall in drawCalls)
+    {
+        var indexCount = drawCall.GetInt32Property("m_nIndexCount");
+        var startIndex = drawCall.GetInt32Property("m_nStartIndex");
+        var vertexCount = drawCall.GetInt32Property("m_nVertexCount");
+        
+        Console.WriteLine($"Draw Call: {indexCount} indices, {vertexCount} vertices");
+        
+        // Check draw call flags
+        var compressed = Mesh.IsCompressedNormalTangent(drawCall);
+        var hasBakedLighting = Mesh.HasBakedLightingFromLightMap(drawCall);
+        Console.WriteLine($"  Compressed normals: {compressed}");
+        Console.WriteLine($"  Baked lighting: {hasBakedLighting}");
+    }
+}
+```
+
+## Example: Loading morph data
+
+```csharp
+var mesh = (Mesh)resource.DataBlock;
+var fileLoader = new FileLoader();
+
+// Load external morph data if referenced
+mesh.LoadExternalMorphData(fileLoader);
+
+if (mesh.MorphData != null)
+{
+    var morph = mesh.MorphData;
+    var flexControllers = morph.FlexControllers;
+    
+    Console.WriteLine($"Flex controllers: {flexControllers?.Length ?? 0}");
+    if (flexControllers != null)
+    {
+        foreach (var controller in flexControllers)
+        {
+            Console.WriteLine($"  {controller.Name}: {controller.Min} to {controller.Max}");
+        }
+    }
+}
+```
+
+## Example: Accessing attachments and hitboxes
+
+```csharp
+var mesh = (Mesh)resource.DataBlock;
+
+// List attachments
+Console.WriteLine("Attachments:");
+foreach (var (name, attachment) in mesh.Attachments)
+{
+    Console.WriteLine($"  {name}: Bone {attachment.ParentBone}");
+}
+
+// List hitbox sets
+Console.WriteLine("Hitbox Sets:");
+foreach (var (setName, hitboxes) in mesh.HitboxSets)
+{
+    Console.WriteLine($"  Set: {setName}");
+    foreach (var hitbox in hitboxes)
+    {
+        Console.WriteLine($"    Hitbox on bone {hitbox.Bone}");
+    }
+}
+```
